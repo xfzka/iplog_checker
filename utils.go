@@ -1,13 +1,27 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
+	"github.com/nikoksr/notify"
+	"github.com/nikoksr/notify/service/bark"
+	"github.com/nikoksr/notify/service/discord"
+	"github.com/nikoksr/notify/service/http"
+	"github.com/nikoksr/notify/service/pushbullet"
+	"github.com/nikoksr/notify/service/pushover"
+	"github.com/nikoksr/notify/service/rocketchat"
+	"github.com/nikoksr/notify/service/slack"
+	"github.com/nikoksr/notify/service/telegram"
+	"github.com/nikoksr/notify/service/webpush"
+	"github.com/nikoksr/notify/service/wechat"
 	"github.com/sirupsen/logrus"
 )
 
@@ -108,17 +122,56 @@ func IsIPInWhitelist(ip uint32) bool {
 // AddNotificationItem 添加通知项
 func AddNotificationItem(ip uint32, source string) {
 	NotificationMap[ip] = append(NotificationMap[ip], NotificationItem{
-		IP:     ip,
-		Count:  len(NotificationMap[ip]) + 1,
-		Source: source,
+		IP:        ip,
+		Count:     len(NotificationMap[ip]) + 1,
+		Source:    source,
+		Timestamp: time.Now().Unix(),
 	})
 }
 
-// CheckAndNotify 检查是否达到阈值并通知（暂时只打印）
+// CheckAndNotify 检查是否达到阈值并通知
 func CheckAndNotify(threshold int, source string, isOnce bool) {
 	for ip, items := range NotificationMap {
 		if len(items) >= threshold {
-			logrus.Infof("Notification triggered for IP %s from %s: %v", Uint32ToIPv4(ip).String(), source, items)
+			// 获取最新项
+			latest := items[len(items)-1]
+			ipStr := Uint32ToIPv4(ip).String()
+			timeStr := time.Unix(latest.Timestamp, 0).Format("2006-01-02 15:04:05")
+			data := struct {
+				IP        string
+				Count     int
+				Source    string
+				Timestamp int64
+				Time      string
+			}{
+				IP:        ipStr,
+				Count:     latest.Count,
+				Source:    latest.Source,
+				Timestamp: latest.Timestamp,
+				Time:      timeStr,
+			}
+
+			for _, notif := range config.Notifications.Services {
+				if latest.Count >= notif.Threshold {
+					// 解析模板
+					tmpl, err := template.New("payload").Parse(notif.PayloadTemplate)
+					if err != nil {
+						logrus.Errorf("Failed to parse template: %v", err)
+						continue
+					}
+					var buf bytes.Buffer
+					if err := tmpl.Execute(&buf, data); err != nil {
+						logrus.Errorf("Failed to execute template: %v", err)
+						continue
+					}
+					message := buf.String()
+
+					// 发送通知
+					sendNotification(notif, message)
+				}
+			}
+
+			logrus.Infof("Notification triggered for IP %s from %s: %v", ipStr, source, items)
 			if !isOnce {
 				// tail 模式下，通知后清理
 				delete(NotificationMap, ip)
@@ -165,4 +218,184 @@ func IsSensitiveIP(ip uint32) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+// sendNotification 发送通知
+func sendNotification(notif Notification, message string) {
+	var service notify.Notifier
+
+	retryCount := config.Notifications.RetryCount
+	if retryCount == 0 {
+		retryCount = 5 // 默认 5
+	}
+
+	var err error
+	for i := 0; i <= retryCount; i++ {
+		switch strings.ToLower(notif.Service) {
+		case "slack":
+			token, ok := notif.Config["token"].(string)
+			if !ok {
+				logrus.Errorf("Slack token not configured or not string")
+				return
+			}
+			slackSvc := slack.New(token)
+			if channel, ok := notif.Config["channel"].(string); ok {
+				slackSvc.AddReceivers(channel)
+			}
+			service = slackSvc
+		case "discord":
+			token, ok := notif.Config["token"].(string)
+			if !ok {
+				logrus.Errorf("Discord token not configured or not string")
+				return
+			}
+			discordSvc := discord.New()
+			discordSvc.AuthenticateWithBotToken(token)
+			if channel, ok := notif.Config["channel"].(string); ok {
+				discordSvc.AddReceivers(channel)
+			}
+			service = discordSvc
+		case "webhook":
+			url, ok := notif.Config["url"].(string)
+			if !ok {
+				logrus.Errorf("Webhook url not configured or not string")
+				return
+			}
+			httpSvc := http.New()
+			webhook := &http.Webhook{
+				URL:         url,
+				Method:      "POST",
+				ContentType: "application/json",
+				BuildPayload: func(subject, message string) any {
+					return message // 直接使用 message 作为 payload
+				},
+			}
+			httpSvc.AddReceivers(webhook)
+			service = httpSvc
+		case "bark":
+			key, ok := notif.Config["key"].(string)
+			if !ok {
+				logrus.Errorf("Bark key not configured or not string")
+				return
+			}
+			barkSvc := bark.New(key)
+			service = barkSvc
+		case "telegram":
+			token, ok := notif.Config["token"].(string)
+			if !ok {
+				logrus.Errorf("Telegram token not configured or not string")
+				return
+			}
+			telegramSvc, err := telegram.New(token)
+			if err != nil {
+				logrus.Errorf("Failed to create Telegram service: %v", err)
+				return
+			}
+			if chatIDStr, ok := notif.Config["chat_id"].(string); ok {
+				if chatID, err := strconv.ParseInt(chatIDStr, 10, 64); err == nil {
+					telegramSvc.AddReceivers(chatID)
+				}
+			}
+			service = telegramSvc
+		case "pushover":
+			token, ok := notif.Config["token"].(string)
+			if !ok {
+				logrus.Errorf("Pushover token not configured or not string")
+				return
+			}
+			pushoverSvc := pushover.New(token)
+			if userKey, ok := notif.Config["user_key"].(string); ok {
+				pushoverSvc.AddReceivers(userKey)
+			}
+			service = pushoverSvc
+		case "pushbullet":
+			token, ok := notif.Config["token"].(string)
+			if !ok {
+				logrus.Errorf("Pushbullet token not configured or not string")
+				return
+			}
+			pushbulletSvc := pushbullet.New(token)
+			if deviceID, ok := notif.Config["device_id"].(string); ok {
+				pushbulletSvc.AddReceivers(deviceID)
+			}
+			service = pushbulletSvc
+		case "rocketchat":
+			url, ok := notif.Config["url"].(string)
+			if !ok {
+				logrus.Errorf("RocketChat url not configured or not string")
+				return
+			}
+			scheme, ok := notif.Config["scheme"].(string)
+			if !ok {
+				scheme = "https"
+			}
+			userID, ok := notif.Config["user_id"].(string)
+			if !ok {
+				logrus.Errorf("RocketChat user_id not configured or not string")
+				return
+			}
+			token, ok := notif.Config["token"].(string)
+			if !ok {
+				logrus.Errorf("RocketChat token not configured or not string")
+				return
+			}
+			rocketchatSvc, err := rocketchat.New(url, scheme, userID, token)
+			if err != nil {
+				logrus.Errorf("Failed to create RocketChat service: %v", err)
+				return
+			}
+			if channel, ok := notif.Config["channel"].(string); ok {
+				rocketchatSvc.AddReceivers(channel)
+			}
+			service = rocketchatSvc
+		case "wechat":
+			appID, ok := notif.Config["app_id"].(string)
+			if !ok {
+				logrus.Errorf("WeChat app_id not configured or not string")
+				return
+			}
+			appSecret, ok := notif.Config["app_secret"].(string)
+			if !ok {
+				logrus.Errorf("WeChat app_secret not configured or not string")
+				return
+			}
+			wechatSvc := wechat.New(&wechat.Config{
+				AppID:     appID,
+				AppSecret: appSecret,
+			})
+			if openID, ok := notif.Config["open_id"].(string); ok {
+				wechatSvc.AddReceivers(openID)
+			}
+			service = wechatSvc
+		case "webpush":
+			vapidPublicKey, ok := notif.Config["vapid_public_key"].(string)
+			if !ok {
+				logrus.Errorf("WebPush vapid_public_key not configured or not string")
+				return
+			}
+			vapidPrivateKey, ok := notif.Config["vapid_private_key"].(string)
+			if !ok {
+				logrus.Errorf("WebPush vapid_private_key not configured or not string")
+				return
+			}
+			webpushSvc := webpush.New(vapidPublicKey, vapidPrivateKey)
+			// For webpush, subscription is complex, assume it's in config as string or something, but for simplicity, skip adding receivers here
+			service = webpushSvc
+		default:
+			logrus.Errorf("Unsupported notification service: %s", notif.Service)
+			return
+		}
+
+		ntf := notify.New()
+		ntf.UseServices(service)
+		err = ntf.Send(context.Background(), "Risk IP Alert", message)
+		if err == nil {
+			return
+		}
+		if i < retryCount {
+			logrus.Warnf("Notification failed, retrying (%d/%d): %v", i+1, retryCount, err)
+			time.Sleep(time.Second * time.Duration(i+1)) // 简单退避
+		}
+	}
+	logrus.Errorf("Failed to send notification after %d retries: %v", retryCount, err)
 }

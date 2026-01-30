@@ -49,9 +49,9 @@ func initAppConfig(config *Config) error {
 		}
 		config.IPLogFiles[i].ReadIntervalParsed = dur
 	}
-	for i := range config.Notifications {
-		if config.Notifications[i].Threshold == 0 {
-			config.Notifications[i].Threshold = 5
+	for i := range config.Notifications.Services {
+		if config.Notifications.Services[i].Threshold == 0 {
+			config.Notifications.Services[i].Threshold = 5
 		}
 	}
 

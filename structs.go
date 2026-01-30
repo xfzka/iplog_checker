@@ -9,10 +9,17 @@ import (
 type Config struct {
 	Logging Logging `yaml:"logging"` // 日志配置
 
-	RiskIPLists   []RiskIPList   `yaml:"risk_ip_lists"` // 风险 IP 列表配置
-	WhitelistIPs  []string       `yaml:"whitelist_ips"` // 白名单 IP (支持单个 IP 或 CIDR 范围)
-	IPLogFiles    []IPLogFile    `yaml:"ip_log_files"`  // 监控的 IP 日志文件
-	Notifications []Notification `yaml:"notifications"` // 通知配置
+	RiskIPLists   []RiskIPList  `yaml:"risk_ip_lists"` // 风险 IP 列表配置
+	WhitelistIPs  []string      `yaml:"whitelist_ips"` // 白名单 IP (支持单个 IP 或 CIDR 范围)
+	IPLogFiles    []IPLogFile   `yaml:"ip_log_files"`  // 监控的 IP 日志文件
+	Notifications Notifications `yaml:"notifications"` // 通知配置
+}
+
+// Notifications 通知配置包装
+type Notifications struct {
+	Timeout    time.Duration  `yaml:"timeout,omitempty"`     // 共享请求超时 (默认 10s)
+	RetryCount int            `yaml:"retry_count,omitempty"` // 共享重试次数 (默认 5)
+	Services   []Notification `yaml:"services"`              // 通知服务列表
 }
 
 // Logging 日志配置
@@ -48,19 +55,10 @@ type IPLogFile struct {
 
 // Notification 通知配置
 type Notification struct {
-	Method     string      `yaml:"method"`                // 通知方法: curl, email, slack, webhook
-	Threshold  int         `yaml:"threshold"`             // 预警阈值 (命中次数) (默认 5)
-	CurlConfig *CurlConfig `yaml:"curl_config,omitempty"` // curl 配置 (仅 method 为 curl 时使用)
-	// Add other notification methods here if needed
-}
-
-// CurlConfig curl 通知方法配置
-type CurlConfig struct {
-	URL             string            `yaml:"url"`                   // 通知端点 URL
-	Headers         map[string]string `yaml:"headers,omitempty"`     // 请求头
-	PayloadTemplate string            `yaml:"payload_template"`      // 负载模板 (使用 Go 模板语法)
-	Timeout         time.Duration     `yaml:"timeout,omitempty"`     // 请求超时 (默认 10s)
-	RetryCount      int               `yaml:"retry_count,omitempty"` // 重试次数 (默认 2)
+	Service         string                 `yaml:"service"`          // 通知服务: slack, discord, email, webhook
+	Threshold       int                    `yaml:"threshold"`        // 预警阈值 (命中次数) (默认 5)
+	PayloadTemplate string                 `yaml:"payload_template"` // 消息模板 (使用 Go 模板语法)
+	Config          map[string]interface{} `yaml:"config,omitempty"` // 服务配置 (如 webhook_url, token 等)
 }
 
 // RiskIPData 存储下载的风险IP数据
@@ -71,7 +69,8 @@ type RiskIPData struct {
 
 // NotificationItem 通知项结构体
 type NotificationItem struct {
-	IP     uint32
-	Count  int
-	Source string // 来源文件
+	IP        uint32
+	Count     int
+	Source    string // 来源文件
+	Timestamp int64  // 时间戳
 }

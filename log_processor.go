@@ -74,8 +74,8 @@ func processLine(line, source string, isOnce bool) {
 
 // getThreshold 获取阈值（暂时取第一个通知的阈值）
 func getThreshold() int {
-	if len(config.Notifications) > 0 {
-		return config.Notifications[0].Threshold
+	if len(config.Notifications.Services) > 0 {
+		return config.Notifications.Services[0].Threshold
 	}
 	return 5 // 默认
 }
