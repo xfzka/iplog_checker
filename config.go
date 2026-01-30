@@ -17,10 +17,8 @@ type Config struct {
 
 // Logging 日志配置
 type Logging struct {
-	Level   string `yaml:"level"`              // 日志级别: debug, info, warn, error
-	To      string `yaml:"to"`                 // 日志文件路径
-	MaxSize string `yaml:"max_size,omitempty"` // 日志文件最大大小 (可选, 默认无限制)
-	MaxAge  string `yaml:"max_age,omitempty"`  // 日志保留天数 (可选, 默认无限制)
+	Level string `yaml:"level"` // 日志级别: debug, info, warn, error
+	To    string `yaml:"to"`    // 日志文件路径
 }
 
 // RiskIPList 风险 IP 列表配置

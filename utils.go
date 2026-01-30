@@ -7,33 +7,8 @@ import (
 	"time"
 )
 
-// parseSize 解析大小字符串，如 "10M" -> 10*1024*1024
-func parseSize(s string) (int64, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, nil
-	}
-	var multiplier int64 = 1
-	switch strings.ToUpper(s[len(s)-1:]) {
-	case "K":
-		multiplier = 1024
-		s = s[:len(s)-1]
-	case "M":
-		multiplier = 1024 * 1024
-		s = s[:len(s)-1]
-	case "G":
-		multiplier = 1024 * 1024 * 1024
-		s = s[:len(s)-1]
-	}
-	size, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return size * multiplier, nil
-}
-
-// parseDuration 解析时间字符串，如 "30d" -> 30*24*time.Hour
-func parseDuration(s string) (time.Duration, error) {
+// ParseDuration 解析时间字符串，如 "30d" -> 30*24*time.Hour
+func ParseDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return 0, nil
