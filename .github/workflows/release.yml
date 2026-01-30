@@ -1,0 +1,96 @@
+name: Release Build & Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    env:
+      GOCACHE: ${{ github.workspace }}/.gocache
+      GOMODCACHE: ${{ github.workspace }}/.gomodcache
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: [1.25.6]
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.GOMODCACHE }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.GOCACHE }}
+          key: ${{ runner.os }}-go-build-${{ matrix.go-version }}-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-${{ matrix.go-version }}-${{ matrix.os }}-${{ matrix.arch }}-
+
+      - name: Build
+        shell: bash
+        run: |
+          ext=""
+          if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
+          output="dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}${ext}"
+          mkdir -p dist
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o "$output" ./...
+          tar -czf dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C dist $(basename "$output")
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iplog_checker-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+
+  publish:
+    name: Create Release and Upload Assets
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      - name: Upload all assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for f in artifacts/*; do
+            filename=$(basename "$f")
+            echo "Uploading $filename"
+            curl -s --fail -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$f" "${{ steps.create_release.outputs.upload_url }}?name=$filename"
+          done
