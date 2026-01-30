@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"time"
 
@@ -71,7 +72,7 @@ func processTailMode(lf TargetLog) {
 		t, err := tail.TailFile(lf.Path, tail.Config{
 			ReOpen:   true,
 			Follow:   true,
-			Location: &tail.SeekInfo{Offset: 0, Whence: 0}, // 从头开始
+			Location: &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd}, // 从尾部开始, 从头开始 io.SeekStart
 		})
 		if err != nil {
 			logrus.Errorf("Failed to tail file %s: %v, retrying in 1 second...", lf.Path, err)
@@ -84,6 +85,7 @@ func processTailMode(lf TargetLog) {
 				logrus.Errorf("Error reading line from %s: %v", lf.Path, line.Err)
 				continue
 			}
+			logrus.Debugf("Read line from %s: %s", lf.Name, line.Text)
 			processLine(line.Text, lf.Name)
 			// tail 模式下，每行后检查通知
 			CheckAndNotify(getThreshold(), lf.Name, false)
@@ -103,7 +105,7 @@ func processLine(line, source string) {
 		return
 	}
 	if isSensitive, name := IsSensitiveIP(ip); isSensitive {
-		logrus.Infof("Found sensitive IP %s from %s in line: %s", Uint32ToIPv4(ip).String(), name, line)
+		logrus.Warnf("Found sensitive IP %s from %s in line: %s", Uint32ToIPv4(ip).String(), name, line)
 		AddNotificationItem(ip, source)
 	}
 }
