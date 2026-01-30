@@ -6,7 +6,8 @@ on:
       - "v*"
 
 jobs:
-  build-and-release:
+  build:
+    name: Build ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ubuntu-latest
     env:
       GOCACHE: ${{ github.workspace }}/.gocache
@@ -54,6 +55,24 @@ jobs:
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o "$output" ./...
           tar -czf dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C dist $(basename "$output")
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iplog_checker-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+
+  publish:
+    name: Create Release and Upload Assets
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
@@ -65,12 +84,13 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload all assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
-          asset_name: iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
-          asset_content_type: application/gzip
+        run: |
+          set -euo pipefail
+          for f in artifacts/*; do
+            filename=$(basename "$f")
+            echo "Uploading $filename"
+            curl -s --fail -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$f" "${{ steps.create_release.outputs.upload_url }}?name=$filename"
+          done
