@@ -98,18 +98,7 @@ func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) err
 
 	body := resp.String()
 
-	var ips []uint32
-	switch strings.ToLower(list.Format) {
-	case "text":
-		ips, err = parseText(body)
-	case "csv":
-		ips, err = parseCSV(body, list.CSVColumn)
-	case "json":
-		ips, err = parseJSON(body, list.JSONPath)
-	default:
-		return fmt.Errorf("unsupported format: %s", list.Format)
-	}
-
+	ips, err := parseIPs(list.Format, body, list.CSVColumn, list.JSONPath)
 	if err != nil {
 		return err
 	}
@@ -130,18 +119,7 @@ func loadFromFile(list RiskIPList, data *RiskIPData) error {
 		return err
 	}
 
-	var ips []uint32
-	switch strings.ToLower(list.Format) {
-	case "text":
-		ips, err = parseText(string(body))
-	case "csv":
-		ips, err = parseCSV(string(body), list.CSVColumn)
-	case "json":
-		ips, err = parseJSON(string(body), list.JSONPath)
-	default:
-		return fmt.Errorf("unsupported format: %s", list.Format)
-	}
-
+	ips, err := parseIPs(list.Format, string(body), list.CSVColumn, list.JSONPath)
 	if err != nil {
 		return err
 	}
@@ -171,6 +149,20 @@ func parseText(body string) ([]uint32, error) {
 		}
 	}
 	return ips, scanner.Err()
+}
+
+// parseIPs 根据格式解析IP列表
+func parseIPs(format, body, csvColumn, jsonPath string) ([]uint32, error) {
+	switch strings.ToLower(format) {
+	case "text":
+		return parseText(body)
+	case "csv":
+		return parseCSV(body, csvColumn)
+	case "json":
+		return parseJSON(body, jsonPath)
+	default:
+		return nil, fmt.Errorf("unsupported format: %s", format)
+	}
 }
 
 // parseCSV 解析CSV格式
