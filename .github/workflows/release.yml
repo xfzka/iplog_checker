@@ -5,6 +5,10 @@ on:
     tags:
       - "v*"
 
+# Grant write permission so GITHUB_TOKEN can create releases
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build ${{ matrix.os }} / ${{ matrix.arch }}
@@ -53,13 +57,15 @@ jobs:
           output="dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}${ext}"
           mkdir -p dist
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o "$output" ./...
-          tar -czf dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C dist $(basename "$output")
+          TAG=${{ github.ref_name }}
+          tarname="iplog_checker-${{ matrix.os }}-${{ matrix.arch }}-${TAG}.tar.gz"
+          tar -czf dist/${tarname} -C dist $(basename "$output")
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iplog_checker-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          name: iplog_checker-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}
+          path: dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}.tar.gz
 
   publish:
     name: Create Release and Upload Assets
@@ -89,8 +95,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          for f in artifacts/*; do
-            filename=$(basename "$f")
-            echo "Uploading $filename"
-            curl -s --fail -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$f" "${{ steps.create_release.outputs.upload_url }}?name=$filename"
+          for dir in artifacts/*; do
+            # each artifact is placed in a subdir, upload files inside
+            for f in "$dir"/*; do
+              [ -f "$f" ] || continue
+              filename=$(basename "$f")
+              echo "Uploading $filename"
+              curl -s --fail -X POST \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Content-Type: application/gzip" \
+                --data-binary @"$f" "${{ steps.create_release.outputs.upload_url }}?name=$filename"
+            done
           done
