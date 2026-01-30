@@ -83,3 +83,4 @@ Temporary Items
 
 main
 iplog_checker.log*
+*.log
