@@ -38,7 +38,7 @@ func initAPP() error {
 	RiskIPDataInstance = riskIPData
 
 	// 启动下载goroutines
-	DownloadRiskIPs(&config, riskIPData)
+	LoadRiskIPs(&config, riskIPData)
 
 	// 等待初始下载完成 (简单等待10秒)
 	time.Sleep(10 * time.Second)

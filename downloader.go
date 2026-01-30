@@ -49,8 +49,8 @@ func (r *RiskIPData) GetTotalLines() int {
 	return total
 }
 
-// DownloadRiskIPs 下载风险IP列表
-func DownloadRiskIPs(config *Config, data *RiskIPData) {
+// LoadRiskIPs 下载风险IP列表
+func LoadRiskIPs(config *Config, data *RiskIPData) {
 	client := req.C()
 
 	for _, list := range config.RiskIPLists {
