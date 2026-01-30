@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -53,23 +54,32 @@ func DownloadRiskIPs(config *Config, data *RiskIPData) {
 	client := req.C()
 
 	for _, list := range config.RiskIPLists {
-		go func(list RiskIPList) {
-			for {
-				err := downloadAndParse(client, list, data)
-				if err != nil {
-					logrus.Errorf("Failed to download %s: %v", list.URL, err)
-				}
-				time.Sleep(list.UpdateInterval)
+		if list.File != "" {
+			// 从文件加载
+			err := loadFromFile(list, data)
+			if err != nil {
+				logrus.Errorf("Failed to load from file %s: %v", list.File, err)
 			}
-		}(list)
+		} else {
+			// 从 URL 下载
+			go func(list RiskIPList) {
+				for {
+					err := downloadAndParse(client, list, data)
+					if err != nil {
+						logrus.Errorf("Failed to download %s: %v", list.URL, err)
+					}
+					time.Sleep(list.UpdateIntervalParsed)
+				}
+			}(list)
+		}
 	}
 }
 
 // downloadAndParse 下载并解析IP列表
 func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) error {
 	c := client
-	if list.Timeout > 0 {
-		c = client.SetTimeout(list.Timeout)
+	if list.TimeoutParsed > 0 {
+		c = client.SetTimeout(list.TimeoutParsed)
 	}
 
 	req := c.R().SetHeaders(list.CustomHeaders)
@@ -110,6 +120,38 @@ func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) err
 		source = list.URL
 	}
 	logrus.Infof("Downloaded %d IPs from %s, %s", len(ips), source, list.URL)
+	return nil
+}
+
+// loadFromFile 从文件加载IP列表
+func loadFromFile(list RiskIPList, data *RiskIPData) error {
+	body, err := os.ReadFile(list.File)
+	if err != nil {
+		return err
+	}
+
+	var ips []uint32
+	switch strings.ToLower(list.Format) {
+	case "text":
+		ips, err = parseText(string(body))
+	case "csv":
+		ips, err = parseCSV(string(body), list.CSVColumn)
+	case "json":
+		ips, err = parseJSON(string(body), list.JSONPath)
+	default:
+		return fmt.Errorf("unsupported format: %s", list.Format)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	data.Set(list.Name, ips)
+	source := list.Name
+	if source == "" {
+		source = list.File
+	}
+	logrus.Infof("Loaded %d IPs from file %s", len(ips), source)
 	return nil
 }
 

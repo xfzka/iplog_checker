@@ -11,10 +11,7 @@ import (
 
 // processOnceMode 处理once模式
 func processOnceMode(lf IPLogFile) {
-	interval := lf.ReadInterval
-	if interval == 0 {
-		interval = 24 * time.Hour
-	}
+	interval := lf.ReadIntervalParsed
 	for {
 		processFileOnce(lf)
 		time.Sleep(interval)
