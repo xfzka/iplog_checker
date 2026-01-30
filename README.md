@@ -16,7 +16,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-username/iplog_checker.git
+git clone https://github.com/xfzka/iplog_checker.git
 cd iplog_checker
 
 # 编译
