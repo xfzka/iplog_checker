@@ -40,6 +40,7 @@ type RiskIPList struct {
 
 // IPLogFile IP 日志文件配置
 type IPLogFile struct {
+	Name         string        `yaml:"name"`                    // 文件名称 (用于通知)
 	Path         string        `yaml:"path"`                    // 日志文件路径
 	ReadMode     string        `yaml:"read_mode"`               // 读取模式: tail (持续监控), once (一次性)
 	ReadInterval time.Duration `yaml:"read_interval,omitempty"` // 一次性读取间隔 (仅 once 模式, 默认 24h)
