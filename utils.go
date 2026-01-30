@@ -391,7 +391,9 @@ func sendNotification(notif Notification, message string) {
 		}
 		if i < retryCount {
 			logrus.Warnf("Notification failed, retrying (%d/%d): %v", i+1, retryCount, err)
-			time.Sleep(time.Second * time.Duration(i+1)) // 简单退避
+			wait := time.Second * time.Duration(i+1)
+			logrus.Debugf("Next notification retry after %s", wait.String())
+			time.Sleep(wait) // 简单退避
 		}
 	}
 	logrus.Errorf("Failed to send notification after %d retries: %v", retryCount, err)

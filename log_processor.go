@@ -14,6 +14,8 @@ func processOnceMode(lf TargetLog) {
 	interval := lf.ReadIntervalParsed
 	for {
 		processFileOnce(lf)
+		// Debug: 输出下一次读取间隔
+		logrus.Debugf("Next read for %s after %s", lf.Name, interval.String())
 		time.Sleep(interval)
 	}
 }

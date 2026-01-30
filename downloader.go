@@ -100,6 +100,14 @@ func LoadIPList(lists []IPList, data *IPData, listType string) {
 						logrus.Errorf("Failed to load from file %s: %v", list.File, err)
 					}
 					if list.UpdateIntervalParsed > 0 {
+						// Debug: 输出下一次更新等待时间
+						var source string
+						if list.Name != "" {
+							source = list.Name
+						} else {
+							source = list.File
+						}
+						logrus.Debugf("Next update for %s (%s) after %s", source, listType, list.UpdateIntervalParsed.String())
 						time.Sleep(list.UpdateIntervalParsed)
 					} else {
 						return // 没有设置更新间隔，只加载一次
@@ -115,6 +123,8 @@ func LoadIPList(lists []IPList, data *IPData, listType string) {
 						logrus.Errorf("Failed to download %s: %v", list.URL, err)
 					}
 					if list.UpdateIntervalParsed > 0 {
+						// Debug: 输出下一次更新等待时间 (简化 source 构建)
+						logrus.Debugf("Next update for %s (%s) after %s", list.Name+": "+list.URL, listType, list.UpdateIntervalParsed.String())
 						time.Sleep(list.UpdateIntervalParsed)
 					} else {
 						return // 没有设置更新间隔，只加载一次
