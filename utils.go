@@ -84,7 +84,7 @@ func InitWhitelist(whitelist []string) {
 			WhitelistIPs = append(WhitelistIPs, ipUint)
 		}
 	}
-	logrus.Infof("Initialized whitelist with %d IP/CIDR", len(WhitelistIPs))
+	logrus.Infof("Initialized whitelist with %d IP/CIDR", len(WhitelistIPs)+len(WhitelistCIDRs))
 }
 
 // IsIPInWhitelist 检查 IP 是否在白名单内

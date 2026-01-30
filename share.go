@@ -4,13 +4,10 @@ import (
 	"net"
 )
 
-var config Config
-var ConfigFilePath string = "config.yaml"
-
-var Whitelist []string
-var WhitelistIPs []uint32
-var WhitelistCIDRs []*net.IPNet
-var RiskIPDataInstance *RiskIPData
-
-// 全局通知映射
-var NotificationMap = make(map[uint32][]NotificationItem)
+var config Config                                         // 全局配置实例
+var ConfigFilePath string = "config.yaml"                 // 默认配置文件路径
+var Whitelist []string                                    // 原始白名单字符串列表
+var WhitelistIPs []uint32                                 // 转换为 uint32 的白名单 IP 列表
+var WhitelistCIDRs []*net.IPNet                           // 白名单 CIDR 列表
+var RiskIPDataInstance *RiskIPData                        // 全局风险 IP 数据实例
+var NotificationMap = make(map[uint32][]NotificationItem) // 全局通知映射
