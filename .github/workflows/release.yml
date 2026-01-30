@@ -95,15 +95,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # strip "{?name,label}" from upload_url returned by actions/create-release
+          upload_url="${{ steps.create_release.outputs.upload_url }}"
+          upload_url="${upload_url%\{*}"
+          echo "Upload URL: $upload_url"
           for dir in artifacts/*; do
             # each artifact is placed in a subdir, upload files inside
             for f in "$dir"/*; do
               [ -f "$f" ] || continue
               filename=$(basename "$f")
               echo "Uploading $filename"
-              curl -s --fail -X POST \
+              # use -S to show error body on failure
+              curl -S --fail -X POST \
                 -H "Authorization: token $GITHUB_TOKEN" \
                 -H "Content-Type: application/gzip" \
-                --data-binary @"$f" "${{ steps.create_release.outputs.upload_url }}?name=$filename"
+                --data-binary @"$f" "$upload_url?name=$filename"
             done
           done
