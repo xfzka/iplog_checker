@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,5 +22,13 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Configuration loaded successfully:\n%+v\n", config)
+	// 初始化日志
+	err = initLogger(&config.Logging)
+	if err != nil {
+		fmt.Printf("Error initializing logger: %v\n", err)
+		return
+	}
+
+	logrus.Info("Configuration loaded successfully")
+	logrus.Debugf("Config: %+v", config)
 }
