@@ -6,18 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/imroc/req/v3"
 	"github.com/sirupsen/logrus"
 )
-
-// RiskIPData 存储下载的风险IP数据
-type RiskIPData struct {
-	mu   sync.RWMutex
-	data map[string][]uint32 // key: Name, value: IP list as uint32
-}
 
 // NewRiskIPData 创建新的RiskIPData
 func NewRiskIPData() *RiskIPData {

@@ -11,21 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var Whitelist []string
-var WhitelistIPs []uint32
-var WhitelistCIDRs []*net.IPNet
-var RiskIPDataInstance *RiskIPData
-
-// NotificationItem 通知项结构体
-type NotificationItem struct {
-	IP     uint32
-	Count  int
-	Source string // 来源文件
-}
-
-// 全局通知映射
-var NotificationMap = make(map[uint32][]NotificationItem)
-
 // ParseDuration 解析时间字符串，如 "30d" -> 30*24*time.Hour
 func ParseDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)

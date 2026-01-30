@@ -9,8 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var config Config
-
 func initAPP() error {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {
