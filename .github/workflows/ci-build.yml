@@ -1,0 +1,72 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    env:
+      GOCACHE: ${{ github.workspace }}/.gocache
+      GOMODCACHE: ${{ github.workspace }}/.gomodcache
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: [1.25.6]
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.GOMODCACHE }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.GOCACHE }}
+          key: ${{ runner.os }}-go-build-${{ matrix.go-version }}-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-${{ matrix.go-version }}-${{ matrix.os }}-${{ matrix.arch }}-
+
+      - name: Build binary
+        shell: bash
+        run: |
+          ext=""
+          if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
+          output="dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}${ext}"
+          mkdir -p dist
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o "$output" ./...
+          ls -lh "$output"
+
+      - name: Archive artifact
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          ext=""
+          if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
+          tar -czf artifacts/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz -C dist iplog_checker-${{ matrix.os }}-${{ matrix.arch }}${ext}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iplog_checker-${{ matrix.os }}-${{ matrix.arch }}
+          path: artifacts/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
