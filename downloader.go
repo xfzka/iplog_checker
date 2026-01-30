@@ -16,28 +16,28 @@ import (
 // RiskIPData 存储下载的风险IP数据
 type RiskIPData struct {
 	mu   sync.RWMutex
-	data map[string][]string // key: URL, value: IP list
+	data map[string][]uint32 // key: Name, value: IP list as uint32
 }
 
 // NewRiskIPData 创建新的RiskIPData
 func NewRiskIPData() *RiskIPData {
 	return &RiskIPData{
-		data: make(map[string][]string),
+		data: make(map[string][]uint32),
 	}
 }
 
 // Set 设置IP列表
-func (r *RiskIPData) Set(url string, ips []string) {
+func (r *RiskIPData) Set(name string, ips []uint32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.data[url] = ips
+	r.data[name] = ips
 }
 
 // GetAll 获取所有IP
-func (r *RiskIPData) GetAll() []string {
+func (r *RiskIPData) GetAll() []uint32 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var all []string
+	var all []uint32
 	for _, ips := range r.data {
 		all = append(all, ips...)
 	}
@@ -95,7 +95,7 @@ func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) err
 
 	body := resp.String()
 
-	var ips []string
+	var ips []uint32
 	switch strings.ToLower(list.Format) {
 	case "text":
 		ips, err = parseText(body)
@@ -111,7 +111,7 @@ func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) err
 		return err
 	}
 
-	data.Set(list.URL, ips)
+	data.Set(list.Name, ips)
 	source := list.Name
 	if source == "" {
 		source = list.URL
@@ -121,20 +121,25 @@ func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) err
 }
 
 // parseText 解析文本格式，每行一个IP
-func parseText(body string) ([]string, error) {
-	var ips []string
+func parseText(body string) ([]uint32, error) {
+	var ips []uint32
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" && !strings.HasPrefix(line, "#") {
-			ips = append(ips, line)
+			ip, err := IPv4ToUint32(line)
+			if err != nil {
+				logrus.Warnf("Invalid IP: %s, skipping", line)
+				continue
+			}
+			ips = append(ips, ip)
 		}
 	}
 	return ips, scanner.Err()
 }
 
 // parseCSV 解析CSV格式
-func parseCSV(body, column string) ([]string, error) {
+func parseCSV(body, column string) ([]uint32, error) {
 	reader := csv.NewReader(strings.NewReader(body))
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -158,11 +163,16 @@ func parseCSV(body, column string) ([]string, error) {
 		return nil, fmt.Errorf("column %s not found", column)
 	}
 
-	var ips []string
+	var ips []uint32
 	for _, record := range records[1:] {
 		if colIndex < len(record) {
-			ip := strings.TrimSpace(record[colIndex])
-			if ip != "" {
+			ipStr := strings.TrimSpace(record[colIndex])
+			if ipStr != "" {
+				ip, err := IPv4ToUint32(ipStr)
+				if err != nil {
+					logrus.Warnf("Invalid IP: %s, skipping", ipStr)
+					continue
+				}
 				ips = append(ips, ip)
 			}
 		}
@@ -171,7 +181,7 @@ func parseCSV(body, column string) ([]string, error) {
 }
 
 // parseJSON 解析JSON格式
-func parseJSON(body, path string) ([]string, error) {
+func parseJSON(body, path string) ([]uint32, error) {
 	var data interface{}
 	err := json.Unmarshal([]byte(body), &data)
 	if err != nil {
@@ -182,10 +192,15 @@ func parseJSON(body, path string) ([]string, error) {
 	if m, ok := data.(map[string]interface{}); ok {
 		if val, exists := m[path]; exists {
 			if arr, ok := val.([]interface{}); ok {
-				var ips []string
+				var ips []uint32
 				for _, item := range arr {
 					if str, ok := item.(string); ok {
-						ips = append(ips, str)
+						ip, err := IPv4ToUint32(str)
+						if err != nil {
+							logrus.Warnf("Invalid IP: %s, skipping", str)
+							continue
+						}
+						ips = append(ips, ip)
 					}
 				}
 				return ips, nil

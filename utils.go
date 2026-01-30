@@ -36,3 +36,20 @@ func ParseDuration(s string) (time.Duration, error) {
 	}
 	return time.Duration(d) * multiplier, nil
 }
+
+// IPv4ToUint32 将IPv4地址字符串转换为uint32
+func IPv4ToUint32(ip string) (uint32, error) {
+	parts := strings.Split(ip, ".")
+	if len(parts) != 4 {
+		return 0, fmt.Errorf("invalid IPv4 address: %s", ip)
+	}
+	var result uint32
+	for i, part := range parts {
+		num, err := strconv.Atoi(part)
+		if err != nil || num < 0 || num > 255 {
+			return 0, fmt.Errorf("invalid IPv4 address: %s", ip)
+		}
+		result |= uint32(num) << ((3 - i) * 8)
+	}
+	return result, nil
+}
