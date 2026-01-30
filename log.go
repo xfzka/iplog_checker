@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -22,12 +23,12 @@ func initLogger(logging *Logging) error {
 		return nil
 	}
 
-	// 输出到文件
+	// 输出到文件和屏幕
 	file, err := os.OpenFile(logging.To, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %v", err)
 	}
-	logrus.SetOutput(file)
+	logrus.SetOutput(io.MultiWriter(os.Stdout, file))
 
 	return nil
 }
