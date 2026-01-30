@@ -74,10 +74,8 @@ func main() {
 		return
 	}
 
-	// 如果启用了自动重载配置，则启动文件监控
-	if config.AutoReloadConfig {
-		go watchConfigFile("config.yaml")
-	}
+	// 启动配置文件监控
+	go watchConfigFile()
 
 	// 主程序逻辑在此处继续...
 	select {}

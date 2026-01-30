@@ -7,8 +7,7 @@ import (
 
 // Config 表示根配置结构
 type Config struct {
-	Logging          Logging `yaml:"logging"`            // 日志配置
-	AutoReloadConfig bool    `yaml:"auto_reload_config"` // 配置自动重载 (watch 形式)
+	Logging Logging `yaml:"logging"` // 日志配置
 
 	RiskIPLists   []RiskIPList   `yaml:"risk_ip_lists"` // 风险 IP 列表配置
 	WhitelistIPs  []string       `yaml:"whitelist_ips"` // 白名单 IP (支持单个 IP 或 CIDR 范围)

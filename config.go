@@ -18,7 +18,7 @@ func initAppConfig(config *Config) error {
 }
 
 // watchConfigFile 监控配置文件变更并自动重载
-func watchConfigFile(configPath string) {
+func watchConfigFile() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logrus.Errorf("Failed to create file watcher: %v", err)
@@ -26,7 +26,7 @@ func watchConfigFile(configPath string) {
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(configPath)
+	err = watcher.Add("config.yaml")
 	if err != nil {
 		logrus.Errorf("Failed to watch config file: %v", err)
 		return
