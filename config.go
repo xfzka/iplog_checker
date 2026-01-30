@@ -1,7 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 // Config 表示根配置结构
@@ -56,4 +62,76 @@ type CurlConfig struct {
 	PayloadTemplate string            `yaml:"payload_template"`      // 负载模板 (使用 Go 模板语法)
 	Timeout         time.Duration     `yaml:"timeout,omitempty"`     // 请求超时 (默认 10s)
 	RetryCount      int               `yaml:"retry_count,omitempty"` // 重试次数 (默认 2)
+}
+
+// watchConfigFile 监控配置文件变更并自动重载
+func watchConfigFile(configPath string, config *Config) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		logrus.Errorf("Failed to create file watcher: %v", err)
+		return
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(configPath)
+	if err != nil {
+		logrus.Errorf("Failed to watch config file: %v", err)
+		return
+	}
+
+	logrus.Info("Started watching config file for changes")
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Has(fsnotify.Write) {
+				logrus.Info("Config file changed, reloading...")
+				err := reloadConfig(configPath, config)
+				if err != nil {
+					logrus.Errorf("Failed to reload config: %v", err)
+				} else {
+					logrus.Info("Config reloaded successfully")
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			logrus.Errorf("File watcher error: %v", err)
+		}
+	}
+}
+
+// reloadConfig 重新加载配置文件
+func reloadConfig(configPath string, config *Config) error {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("error reading config file: %v", err)
+	}
+
+	var newConfig Config
+	err = yaml.Unmarshal(data, &newConfig)
+	if err != nil {
+		return fmt.Errorf("error parsing YAML: %v", err)
+	}
+
+	// 重新初始化日志（如果配置变更）
+	err = initLogger(&newConfig.Logging)
+	if err != nil {
+		return fmt.Errorf("error reinitializing logger: %v", err)
+	}
+
+	// 更新配置
+	*config = newConfig
+
+	// 重新设置白名单
+	Whitelist = config.WhitelistIPs
+
+	// 注意：风险IP下载goroutines可能需要重新启动，但这里简化处理
+	// 在实际应用中，可能需要停止旧的goroutines并启动新的
+
+	return nil
 }

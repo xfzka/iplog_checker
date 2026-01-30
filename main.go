@@ -48,4 +48,12 @@ func main() {
 	// 输出总行数
 	totalLines := riskIPData.GetTotalLines()
 	logrus.Infof("Total risk IPs loaded: %d", totalLines)
+
+	// 如果启用了自动重载配置，则启动文件监控
+	if config.AutoReloadConfig {
+		go watchConfigFile("config.yaml", &config)
+	}
+
+	// 启动日志监控或其他逻辑
+	// ... (假设有其他逻辑)
 }
