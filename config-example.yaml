@@ -131,6 +131,7 @@ target_logs:
 # ------------------------------------------------------------
 # 当检测到风险 IP 达到阈值时，发送通知
 # 支持多种通知服务，可同时配置多个
+# 通知服务基于 nikoksr/notify 库: https://github.com/nikoksr/notify
 notifications:
   # 全局请求超时设置
   # 默认值: 10s
@@ -146,10 +147,11 @@ notifications:
     # 1. Webhook (自定义 HTTP 请求)
     # ========================================
     # 适用于: 自定义告警系统、企业内部系统对接
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/http
     - service: "webhook"
-      threshold:
-        5 # 触发通知的阈值 (同一 IP 命中次数)
-        # 默认值: 5
+      # 触发通知的阈值 (同一 IP 命中次数)
+      # 默认值: 5
+      threshold: 5
       # 消息模板 (使用 Go 模板语法)
       # 可用变量:
       #   {{.IP}}        - 风险 IP 地址
@@ -159,109 +161,181 @@ notifications:
       #   {{.Time}}      - 格式化时间 (2006-01-02 15:04:05)
       payload_template: '{"alert": "Risk IP detected", "ip": "{{.IP}}", "count": {{.Count}}, "source": "{{.Source}}", "timestamp": "{{.Timestamp}}", "time": "{{.Time}}" }'
       config:
-        url: "https://example.com/alert_endpoint" # Webhook URL (必填)
-        headers: # 自定义 HTTP 请求头 (可选)
-          Content-Type: "application/json"
+        # Webhook URL (必填)
+        url: "https://example.com/alert_endpoint"
+        # HTTP 请求方法 (可选)
+        # 默认值: POST
+        method: "POST"
+        # Content-Type 请求头 (可选)
+        # 默认值: application/json
+        content_type: "application/json"
+        # 自定义 HTTP 请求头 (可选)
+        # 默认值: 无
+        headers:
           Authorization: "Bearer your_token"
+          X-Custom-Header: "custom_value"
 
     # ========================================
     # 2. Slack
     # ========================================
     # 适用于: 使用 Slack 的团队
+    # 需要权限: chat:write.public, chat:write
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/slack
     # - service: "slack"
     #   threshold: 5
     #   payload_template: "🚨 Risk IP Alert: {{.IP}} ({{.Count}} hits) from {{.Source}} at {{.Time}}"
     #   config:
-    #     token: "xoxb-your-slack-bot-token"       # Slack Bot Token (必填)
-    #     channel: "#security-alerts"              # 目标频道 (必填)
+    #     # Slack Bot Token (必填)
+    #     # 格式: xoxb-xxxx-xxxx-xxxx
+    #     # 获取方式: https://api.slack.com/
+    #     token: "xoxb-your-slack-bot-token"
+    #     # 目标频道 ID 或名称 (必填)
+    #     # 示例: "#security-alerts" 或 "C1234567890"
+    #     channel: "#security-alerts"
 
     # ========================================
     # 3. Discord
     # ========================================
     # 适用于: 使用 Discord 的团队
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/discord
     # - service: "discord"
     #   threshold: 5
     #   payload_template: "🚨 Risk IP Alert: {{.IP}} ({{.Count}} hits) from {{.Source}}"
     #   config:
-    #     token: "your-discord-bot-token"          # Discord Bot Token (必填)
-    #     channel: "channel_id"                    # 目标频道 ID (必填)
+    #     # Discord Bot Token (必填)
+    #     # 获取方式: https://discord.com/developers/applications
+    #     token: "your-discord-bot-token"
+    #     # 目标频道 ID (必填)
+    #     # 注意: 是频道的数字 ID，不是频道名称
+    #     # 获取方式: 在 Discord 中右键点击频道 -> 复制 ID (需要开启开发者模式)
+    #     channel: "1234567890123456789"
 
     # ========================================
     # 4. Telegram
     # ========================================
     # 适用于: 需要移动端推送的用户
+    # 消息内容支持 HTML 格式
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/telegram
     # - service: "telegram"
     #   threshold: 5
-    #   payload_template: "🚨 Risk IP Alert\nIP: {{.IP}}\nHits: {{.Count}}\nSource: {{.Source}}\nTime: {{.Time}}"
+    #   payload_template: "🚨 <b>Risk IP Alert</b>\nIP: {{.IP}}\nHits: {{.Count}}\nSource: {{.Source}}\nTime: {{.Time}}"
     #   config:
-    #     token: "your-telegram-bot-token"         # Telegram Bot Token (必填)
-    #     chat_id: "123456789"                     # 目标 Chat ID (必填，字符串格式)
+    #     # Telegram Bot Token (必填)
+    #     # 获取方式: 与 @BotFather 对话创建 Bot
+    #     token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+    #     # 目标 Chat ID (必填)
+    #     # 格式: 字符串类型的数字
+    #     # 获取方式: 与 @userinfobot 对话获取
+    #     # 注意: 群组 ID 为负数
+    #     chat_id: "123456789"
 
     # ========================================
     # 5. Bark (iOS 推送)
     # ========================================
     # 适用于: iOS 用户，需要安装 Bark App
+    # Bark App: https://apps.apple.com/app/bark-customed-notifications/id1403753865
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/bark
     # - service: "bark"
     #   threshold: 5
     #   payload_template: "Risk IP: {{.IP}} ({{.Count}} hits) - {{.Source}}"
     #   config:
-    #     key: "your-bark-device-key"              # Bark Device Key (必填)
+    #     # Bark Device Key (必填)
+    #     # 获取方式: 打开 Bark App 查看
+    #     key: "your-bark-device-key"
+    #     # Bark 服务器地址 (可选)
+    #     # 默认值: https://api.day.app/
+    #     # 如果自建 Bark 服务器，填写自建服务器地址
+    #     server_url: "https://api.day.app/"
 
     # ========================================
     # 6. Pushover
     # ========================================
-    # 适用于: 需要跨平台推送通知的用户
+    # 适用于: 需要跨平台推送通知的用户 (iOS, Android, Desktop)
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/pushover
     # - service: "pushover"
     #   threshold: 5
     #   payload_template: "Risk IP {{.IP}} detected {{.Count}} times from {{.Source}}"
     #   config:
-    #     token: "your-pushover-api-token"         # Pushover API Token (必填)
-    #     user_key: "your-pushover-user-key"       # Pushover User Key (必填)
+    #     # Pushover API Token / App Token (必填)
+    #     # 获取方式: https://pushover.net/apps/build
+    #     token: "your-pushover-api-token"
+    #     # Pushover User Key 或 Group Key (必填)
+    #     # 获取方式: https://pushover.net/ 登录后查看
+    #     user_key: "your-pushover-user-key"
 
     # ========================================
     # 7. Pushbullet
     # ========================================
-    # 适用于: 需要多设备同步通知的用户
+    # 适用于: 需要多设备同步通知的用户 (Android, Chrome, Firefox, Windows)
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/pushbullet
     # - service: "pushbullet"
     #   threshold: 5
     #   payload_template: "Risk IP Alert: {{.IP}} - {{.Count}} hits"
     #   config:
-    #     token: "your-pushbullet-access-token"    # Pushbullet Access Token (必填)
-    #     device_id: "device_id"                   # 目标设备 ID (可选，为空则推送到所有设备)
+    #     # Pushbullet Access Token (必填)
+    #     # 获取方式: https://www.pushbullet.com/#settings
+    #     token: "your-pushbullet-access-token"
+    #     # 目标设备昵称 (可选)
+    #     # 默认值: 空 (推送到所有设备)
+    #     # 设备昵称可在 Pushbullet 设置中查看
+    #     device_id: ""
 
     # ========================================
     # 8. RocketChat
     # ========================================
     # 适用于: 使用 Rocket.Chat 的团队
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/rocketchat
     # - service: "rocketchat"
     #   threshold: 5
     #   payload_template: "🚨 Risk IP: {{.IP}} detected {{.Count}} times"
     #   config:
-    #     url: "your-rocketchat-server.com"        # Rocket.Chat 服务器地址 (必填)
-    #     scheme: "https"                          # 协议: http 或 https (默认: https)
-    #     user_id: "your-user-id"                  # 用户 ID (必填)
-    #     token: "your-auth-token"                 # 认证 Token (必填)
-    #     channel: "#security"                     # 目标频道 (必填)
+    #     # Rocket.Chat 服务器地址 (必填)
+    #     # 示例: "chat.example.com" 或 "localhost:3000"
+    #     url: "your-rocketchat-server.com"
+    #     # 协议 (必填)
+    #     # 可选值: http, https
+    #     scheme: "https"
+    #     # 用户 ID (必填)
+    #     # 获取方式: Rocket.Chat 管理员设置 -> 用户
+    #     user_id: "your-user-id"
+    #     # 认证 Token (必填)
+    #     # 获取方式: Rocket.Chat 个人设置 -> Personal Access Tokens
+    #     token: "your-auth-token"
+    #     # 目标频道名称 (必填)
+    #     # 示例: "#security" 或 "general"
+    #     channel: "#security"
 
     # ========================================
     # 9. WeChat (微信公众号/企业微信)
     # ========================================
     # 适用于: 中国区用户
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/wechat
     # - service: "wechat"
     #   threshold: 5
     #   payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
     #   config:
-    #     app_id: "your-wechat-app-id"             # 微信 App ID (必填)
-    #     app_secret: "your-wechat-app-secret"     # 微信 App Secret (必填)
-    #     open_id: "target-user-open-id"           # 目标用户 OpenID (必填)
+    #     # 微信公众号 App ID (必填)
+    #     # 获取方式: 微信公众平台 -> 开发 -> 基本配置
+    #     app_id: "your-wechat-app-id"
+    #     # 微信公众号 App Secret (必填)
+    #     # 获取方式: 微信公众平台 -> 开发 -> 基本配置
+    #     app_secret: "your-wechat-app-secret"
+    #     # 目标用户的 OpenID (必填)
+    #     # 获取方式: 用户关注公众号后获取
+    #     open_id: "target-user-open-id"
 
     # ========================================
     # 10. WebPush (浏览器推送)
     # ========================================
     # 适用于: Web 应用集成
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/webpush
     # - service: "webpush"
     #   threshold: 5
     #   payload_template: "Risk IP: {{.IP}} detected"
     #   config:
-    #     vapid_public_key: "your-vapid-public-key"    # VAPID 公钥 (必填)
-    #     vapid_private_key: "your-vapid-private-key"  # VAPID 私钥 (必填)
+    #     # VAPID 公钥 (必填)
+    #     # 生成方式: 使用 web-push 库生成 VAPID 密钥对
+    #     vapid_public_key: "your-vapid-public-key"
+    #     # VAPID 私钥 (必填)
+    #     # 生成方式: 使用 web-push 库生成 VAPID 密钥对
+    #     vapid_private_key: "your-vapid-private-key"

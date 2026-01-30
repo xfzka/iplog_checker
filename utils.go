@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	nethttp "net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -224,12 +226,45 @@ func sendNotification(notif Notification, message string) {
 				return
 			}
 			httpSvc := http.New()
+
+			// 构建 webhook header - 必须初始化，否则会 panic
+			webhookHeader := nethttp.Header{}
+			if headers, ok := notif.Config["headers"].(map[string]interface{}); ok {
+				for k, v := range headers {
+					if strVal, ok := v.(string); ok {
+						webhookHeader.Set(k, strVal)
+					}
+				}
+			}
+
+			// 获取 method，默认为 POST
+			method := "POST"
+			if m, ok := notif.Config["method"].(string); ok {
+				method = m
+			}
+
+			// 获取 content_type，默认为 application/json
+			contentType := "application/json"
+			if ct, ok := notif.Config["content_type"].(string); ok {
+				contentType = ct
+			}
+
 			webhook := &http.Webhook{
 				URL:         url,
-				Method:      "POST",
-				ContentType: "application/json",
+				Method:      method,
+				Header:      webhookHeader,
+				ContentType: contentType,
 				BuildPayload: func(subject, message string) any {
-					return message // 直接使用 message 作为 payload
+					// 尝试解析 message 为 JSON，如果失败则返回原始字符串
+					var jsonPayload map[string]interface{}
+					if err := json.Unmarshal([]byte(message), &jsonPayload); err == nil {
+						return jsonPayload
+					}
+					// 如果 message 不是 JSON，包装为标准格式
+					return map[string]interface{}{
+						"title":   subject,
+						"message": message,
+					}
 				},
 			}
 			httpSvc.AddReceivers(webhook)
