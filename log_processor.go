@@ -36,7 +36,7 @@ func processFileOnce(lf TargetLog) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		processLine(line, lf.Name, true)
+		processLine(line, lf.Name)
 	}
 	if err := scanner.Err(); err != nil {
 		logrus.Errorf("Error reading file %s: %v", lf.Path, err)
@@ -82,7 +82,7 @@ func processTailMode(lf TargetLog) {
 				logrus.Errorf("Error reading line from %s: %v", lf.Path, line.Err)
 				continue
 			}
-			processLine(line.Text, lf.Name, false)
+			processLine(line.Text, lf.Name)
 			// tail 模式下，每行后检查通知
 			CheckAndNotify(getThreshold(), lf.Name, false)
 		}
@@ -94,7 +94,7 @@ func processTailMode(lf TargetLog) {
 }
 
 // processLine 处理单行日志
-func processLine(line, source string, isOnce bool) {
+func processLine(line, source string) {
 	ip, err := ExtractIPFromLine(line)
 	if err != nil {
 		// 没有IP，跳过
