@@ -23,18 +23,18 @@ func initAppConfig(config *Config) error {
 		}
 	}
 
-	for i := range config.IPLogFiles {
-		if config.IPLogFiles[i].ReadMode == "" {
-			config.IPLogFiles[i].ReadMode = "once"
+	for i := range config.TargetLogs {
+		if config.TargetLogs[i].ReadMode == "" {
+			config.TargetLogs[i].ReadMode = "once"
 		}
-		if config.IPLogFiles[i].ReadInterval == "" {
-			config.IPLogFiles[i].ReadInterval = "2h"
+		if config.TargetLogs[i].ReadInterval == "" {
+			config.TargetLogs[i].ReadInterval = "2h"
 		}
-		dur, err := ParseDuration(config.IPLogFiles[i].ReadInterval)
+		dur, err := ParseDuration(config.TargetLogs[i].ReadInterval)
 		if err != nil {
-			return fmt.Errorf("invalid read_interval for %s: %v", config.IPLogFiles[i].Name, err)
+			return fmt.Errorf("invalid read_interval for %s: %v", config.TargetLogs[i].Name, err)
 		}
-		config.IPLogFiles[i].ReadIntervalParsed = dur
+		config.TargetLogs[i].ReadIntervalParsed = dur
 	}
 	for i := range config.Notifications.Services {
 		if config.Notifications.Services[i].Threshold == 0 {

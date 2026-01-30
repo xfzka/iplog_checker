@@ -45,16 +45,16 @@ func initAPP() error {
 	logrus.Infof("Total safe IPs/CIDRs loaded: %d", safeCount)
 	logrus.Infof("Total risk IPs/CIDRs loaded: %d", riskCount)
 
-	// 启动IP日志文件处理goroutines
-	StartIPLogFileProcessors(&config)
+	// 启动目标日志文件处理goroutines
+	StartTargetLogProcessors(&config)
 
 	return nil
 }
 
-// StartIPLogFileProcessors 启动IP日志文件处理器
-func StartIPLogFileProcessors(config *Config) {
-	for _, logFile := range config.IPLogFiles {
-		go func(lf IPLogFile) {
+// StartTargetLogProcessors 启动目标日志文件处理器
+func StartTargetLogProcessors(config *Config) {
+	for _, logFile := range config.TargetLogs {
+		go func(lf TargetLog) {
 			if lf.ReadMode == "once" {
 				processOnceMode(lf)
 			} else if lf.ReadMode == "tail" {

@@ -11,7 +11,7 @@ type Config struct {
 
 	SafeList      []IPList      `yaml:"safe_list"`     // 安全 IP 列表配置 (白名单)
 	RiskList      []IPList      `yaml:"risk_list"`     // 风险 IP 列表配置
-	IPLogFiles    []IPLogFile   `yaml:"ip_log_files"`  // 监控的 IP 日志文件
+	TargetLogs    []TargetLog   `yaml:"target_logs"`   // 监控的目标日志文件
 	Notifications Notifications `yaml:"notifications"` // 通知配置
 }
 
@@ -45,13 +45,14 @@ type IPList struct {
 	CustomHeaders        map[string]string `yaml:"custom_headers,omitempty"` // 自定义请求头 (仅 url)
 }
 
-// IPLogFile IP 日志文件配置
-type IPLogFile struct {
+// TargetLog 目标日志文件配置
+type TargetLog struct {
 	Name               string        `yaml:"name"`                    // 文件名称 (用于通知)
 	Path               string        `yaml:"path"`                    // 日志文件路径
 	ReadMode           string        `yaml:"read_mode"`               // 读取模式: tail (持续监控), once (一次性) (默认 once)
 	ReadInterval       string        `yaml:"read_interval,omitempty"` // 一次性读取间隔 (仅 once 模式, 支持 h/m/s/d, 默认 2h)
 	ReadIntervalParsed time.Duration // 解析后的读取间隔
+	CleanAfterRead     bool          `yaml:"clean_after_read,omitempty"` // 读取后清空 (仅 once 模式, 默认 false)
 }
 
 // Notification 通知配置
