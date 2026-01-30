@@ -6,13 +6,13 @@ import (
 
 // Config 表示根配置结构
 type Config struct {
-	Logging          Logging        `yaml:"logging"`            // 日志配置
-	AutoReloadConfig bool           `yaml:"auto_reload_config"` // 配置自动重载 (watch 形式)
-	RiskIPSaveTo     string         `yaml:"risk_ip_save_to"`    // 风险 IP 存储位置 (支持文件路径或 :memory:)
-	RiskIPLists      []RiskIPList   `yaml:"risk_ip_lists"`      // 风险 IP 列表配置
-	WhitelistIPs     []string       `yaml:"whitelist_ips"`      // 白名单 IP (支持单个 IP 或 CIDR 范围)
-	IPLogFiles       []IPLogFile    `yaml:"ip_log_files"`       // 监控的 IP 日志文件
-	Notifications    []Notification `yaml:"notifications"`      // 通知配置
+	Logging          Logging `yaml:"logging"`            // 日志配置
+	AutoReloadConfig bool    `yaml:"auto_reload_config"` // 配置自动重载 (watch 形式)
+
+	RiskIPLists   []RiskIPList   `yaml:"risk_ip_lists"` // 风险 IP 列表配置
+	WhitelistIPs  []string       `yaml:"whitelist_ips"` // 白名单 IP (支持单个 IP 或 CIDR 范围)
+	IPLogFiles    []IPLogFile    `yaml:"ip_log_files"`  // 监控的 IP 日志文件
+	Notifications []Notification `yaml:"notifications"` // 通知配置
 }
 
 // Logging 日志配置
