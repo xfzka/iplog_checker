@@ -9,13 +9,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var config Config
+
 func initAPP() error {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {
 		return fmt.Errorf("Error reading config file: %v\n", err)
 	}
 
-	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		return fmt.Errorf("Error parsing YAML: %v\n", err)
@@ -47,11 +48,6 @@ func initAPP() error {
 	totalLines := riskIPData.GetTotalLines()
 	logrus.Infof("Total risk IPs loaded: %d", totalLines)
 
-	// 如果启用了自动重载配置，则启动文件监控
-	if config.AutoReloadConfig {
-		go watchConfigFile("config.yaml")
-	}
-
 	return nil
 }
 
@@ -60,6 +56,11 @@ func main() {
 	if err != nil {
 		fmt.Printf("Failed to initialize app: %v\n", err)
 		return
+	}
+
+	// 如果启用了自动重载配置，则启动文件监控
+	if config.AutoReloadConfig {
+		go watchConfigFile("config.yaml")
 	}
 
 	// 主程序逻辑在此处继续...
