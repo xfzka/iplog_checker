@@ -28,7 +28,6 @@ func initAPP() error {
 	}
 
 	// 设置白名单
-	Whitelist = config.WhitelistIPs
 	InitWhitelist(config.WhitelistIPs)
 
 	// 初始化风险IP数据
