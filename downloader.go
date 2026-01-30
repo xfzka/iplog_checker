@@ -232,6 +232,15 @@ func downloadAndParse(client *req.Client, list IPList, data *IPData, listType st
 		source = list.URL
 	}
 	logrus.Infof("Downloaded %d IPs and %d CIDRs from [%s] %s, %s", len(ips), len(cidrs), listType, source, list.URL)
+	if config.Logging.Level == "debug" {
+		logrus.Debugf("Top 10 IP from %s:", source)
+		for i, ip := range ips {
+			if i >= 10 {
+				break
+			}
+			logrus.Debugf(" - %s", Uint32ToIPv4(ip).String())
+		}
+	}
 	return nil
 }
 
