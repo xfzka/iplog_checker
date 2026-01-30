@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,16 @@ var Whitelist []string
 var WhitelistIPs []uint32
 var WhitelistCIDRs []*net.IPNet
 var RiskIPDataInstance *RiskIPData
+
+// NotificationItem 通知项结构体
+type NotificationItem struct {
+	IP     uint32
+	Count  int
+	Source string // 来源文件
+}
+
+// 全局通知映射
+var NotificationMap = make(map[uint32][]NotificationItem)
 
 // ParseDuration 解析时间字符串，如 "30d" -> 30*24*time.Hour
 func ParseDuration(s string) (time.Duration, error) {
@@ -107,6 +118,46 @@ func IsIPInWhitelist(ip uint32) bool {
 		}
 	}
 	return false
+}
+
+// AddNotificationItem 添加通知项
+func AddNotificationItem(ip uint32, source string) {
+	NotificationMap[ip] = append(NotificationMap[ip], NotificationItem{
+		IP:     ip,
+		Count:  len(NotificationMap[ip]) + 1,
+		Source: source,
+	})
+}
+
+// CheckAndNotify 检查是否达到阈值并通知（暂时只打印）
+func CheckAndNotify(threshold int, source string, isOnce bool) {
+	for ip, items := range NotificationMap {
+		if len(items) >= threshold {
+			logrus.Infof("Notification triggered for IP %s from %s: %v", Uint32ToIPv4(ip).String(), source, items)
+			if !isOnce {
+				// tail 模式下，通知后清理
+				delete(NotificationMap, ip)
+			}
+		}
+	}
+	// once 模式下，读取完后清理所有
+	if isOnce {
+		for ip := range NotificationMap {
+			delete(NotificationMap, ip)
+		}
+	}
+}
+
+// ExtractIPFromLine 从日志行中提取IP地址
+func ExtractIPFromLine(line string) (uint32, error) {
+	// 正则表达式匹配IPv4地址
+	re := regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`)
+	matches := re.FindAllString(line, -1)
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("no IP found in line")
+	}
+	// 取第一个匹配的IP
+	return IPv4ToUint32(matches[0])
 }
 
 // IsSensitiveIP 检测IP是否敏感

@@ -48,7 +48,25 @@ func initAPP() error {
 	totalLines := riskIPData.GetTotalLines()
 	logrus.Infof("Total risk IPs loaded: %d", totalLines)
 
+	// 启动IP日志文件处理goroutines
+	StartIPLogFileProcessors(&config)
+
 	return nil
+}
+
+// StartIPLogFileProcessors 启动IP日志文件处理器
+func StartIPLogFileProcessors(config *Config) {
+	for _, logFile := range config.IPLogFiles {
+		go func(lf IPLogFile) {
+			if lf.ReadMode == "once" {
+				processOnceMode(lf)
+			} else if lf.ReadMode == "tail" {
+				processTailMode(lf)
+			} else {
+				logrus.Errorf("Unknown read_mode for %s: %s", lf.Name, lf.ReadMode)
+			}
+		}(logFile)
+	}
 }
 
 func main() {
