@@ -140,7 +140,7 @@ func CheckAndNotify(threshold int, source string, isOnce bool) {
 				}
 			}
 
-			logrus.Infof("Notification triggered for IP %s from %s: %v", ipStr, source, items)
+			logrus.Infof("Notification triggered for IP %s from %s", ipStr, source)
 			if !isOnce {
 				// tail 模式下，通知后清理
 				delete(NotificationMap, ip)
@@ -202,8 +202,14 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("Slack token not configured or not string")
 				return
 			}
+
+			channel := ""
+			if ch, ok := notif.Config["channel"].(string); ok {
+				channel = ch
+			}
+			logrus.Debugf("Setup Slack with token=%s, channel=%s", token, channel)
 			slackSvc := slack.New(token)
-			if channel, ok := notif.Config["channel"].(string); ok {
+			if channel != "" {
 				slackSvc.AddReceivers(channel)
 			}
 			service = slackSvc
@@ -213,9 +219,15 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("Discord token not configured or not string")
 				return
 			}
+			masked := token
+			channel := ""
+			if ch, ok := notif.Config["channel"].(string); ok {
+				channel = ch
+			}
+			logrus.Debugf("Setup Discord with token=%s, channel=%s", masked, channel)
 			discordSvc := discord.New()
 			discordSvc.AuthenticateWithBotToken(token)
-			if channel, ok := notif.Config["channel"].(string); ok {
+			if channel != "" {
 				discordSvc.AddReceivers(channel)
 			}
 			service = discordSvc
@@ -249,6 +261,9 @@ func sendNotification(notif Notification, message string) {
 				contentType = ct
 			}
 
+			// 打印 debug 信息（不展示完整 header 值以免泄露）
+			logrus.Debugf("Setup Webhook with url=%s method=%s content_type=%s headers=%v", url, method, contentType, webhookHeader)
+
 			webhook := &http.Webhook{
 				URL:         url,
 				Method:      method,
@@ -275,20 +290,34 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("Bark key not configured or not string")
 				return
 			}
-			barkSvc := bark.New(key)
-			service = barkSvc
+			server_url, ok := notif.Config["server_url"].(string)
+			if ok {
+				logrus.Debugf("Setup Bark with custom server_url: %s , key: %s", server_url, key)
+				barkSvc := bark.NewWithServers(key, server_url)
+				service = barkSvc
+			} else {
+				logrus.Debugf("Setup Bark with default server_url: %s, key: %s", bark.DefaultServerURL, key)
+				barkSvc := bark.New(key)
+				service = barkSvc
+			}
 		case "telegram":
 			token, ok := notif.Config["token"].(string)
 			if !ok {
 				logrus.Errorf("Telegram token not configured or not string")
 				return
 			}
+			masked := token
+			chatIDStr := ""
+			if c, ok := notif.Config["chat_id"].(string); ok {
+				chatIDStr = c
+			}
+			logrus.Debugf("Setup Telegram with token=%s chat_id=%s", masked, chatIDStr)
 			telegramSvc, err := telegram.New(token)
 			if err != nil {
 				logrus.Errorf("Failed to create Telegram service: %v", err)
 				return
 			}
-			if chatIDStr, ok := notif.Config["chat_id"].(string); ok {
+			if chatIDStr != "" {
 				if chatID, err := strconv.ParseInt(chatIDStr, 10, 64); err == nil {
 					telegramSvc.AddReceivers(chatID)
 				}
@@ -300,8 +329,14 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("Pushover token not configured or not string")
 				return
 			}
+			masked := token
+			userKey := ""
+			if uk, ok := notif.Config["user_key"].(string); ok {
+				userKey = uk
+			}
+			logrus.Debugf("Setup Pushover with token=%s user_key=%s", masked, userKey)
 			pushoverSvc := pushover.New(token)
-			if userKey, ok := notif.Config["user_key"].(string); ok {
+			if userKey != "" {
 				pushoverSvc.AddReceivers(userKey)
 			}
 			service = pushoverSvc
@@ -311,8 +346,14 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("Pushbullet token not configured or not string")
 				return
 			}
+			masked := token
+			deviceID := ""
+			if did, ok := notif.Config["device_id"].(string); ok {
+				deviceID = did
+			}
+			logrus.Debugf("Setup Pushbullet with token=%s device_id=%s", masked, deviceID)
 			pushbulletSvc := pushbullet.New(token)
-			if deviceID, ok := notif.Config["device_id"].(string); ok {
+			if deviceID != "" {
 				pushbulletSvc.AddReceivers(deviceID)
 			}
 			service = pushbulletSvc
@@ -336,12 +377,18 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("RocketChat token not configured or not string")
 				return
 			}
+			masked := token
+			channel := ""
+			if ch, ok := notif.Config["channel"].(string); ok {
+				channel = ch
+			}
+			logrus.Debugf("Setup RocketChat with url=%s scheme=%s user_id=%s token=%s channel=%s", url, scheme, userID, masked, channel)
 			rocketchatSvc, err := rocketchat.New(url, scheme, userID, token)
 			if err != nil {
 				logrus.Errorf("Failed to create RocketChat service: %v", err)
 				return
 			}
-			if channel, ok := notif.Config["channel"].(string); ok {
+			if channel != "" {
 				rocketchatSvc.AddReceivers(channel)
 			}
 			service = rocketchatSvc
@@ -356,11 +403,17 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("WeChat app_secret not configured or not string")
 				return
 			}
+			masked := appSecret
+			openID := ""
+			if oid, ok := notif.Config["open_id"].(string); ok {
+				openID = oid
+			}
+			logrus.Debugf("Setup WeChat with app_id=%s app_secret=%s open_id=%s", appID, masked, openID)
 			wechatSvc := wechat.New(&wechat.Config{
 				AppID:     appID,
 				AppSecret: appSecret,
 			})
-			if openID, ok := notif.Config["open_id"].(string); ok {
+			if openID != "" {
 				wechatSvc.AddReceivers(openID)
 			}
 			service = wechatSvc
@@ -375,6 +428,7 @@ func sendNotification(notif Notification, message string) {
 				logrus.Errorf("WebPush vapid_private_key not configured or not string")
 				return
 			}
+			logrus.Debugf("Setup WebPush with public_key=%s private_key=%s", vapidPublicKey, vapidPrivateKey)
 			webpushSvc := webpush.New(vapidPublicKey, vapidPrivateKey)
 			// For webpush, subscription is complex, assume it's in config as string or something, but for simplicity, skip adding receivers here
 			service = webpushSvc
@@ -383,9 +437,15 @@ func sendNotification(notif Notification, message string) {
 			return
 		}
 
+		title := notif.PayloadTitle
+		if title == "" {
+			title = "Risk IP Alert"
+		}
+
 		ntf := notify.New()
 		ntf.UseServices(service)
-		err = ntf.Send(context.Background(), "Risk IP Alert", message)
+		err = ntf.Send(context.Background(), title, message)
+		logrus.Debugf("Use service: %s, send Title: %s, message: %s", service, title, message)
 		if err == nil {
 			return
 		}

@@ -57,10 +57,11 @@ type TargetLog struct {
 
 // Notification 通知配置
 type Notification struct {
-	Service         string                 `yaml:"service"`          // 通知服务: slack, discord, email, webhook
-	Threshold       int                    `yaml:"threshold"`        // 预警阈值 (命中次数) (默认 5)
-	PayloadTemplate string                 `yaml:"payload_template"` // 消息模板 (使用 Go 模板语法)
-	Config          map[string]interface{} `yaml:"config,omitempty"` // 服务配置 (如 webhook_url, token 等)
+	Service         string                 `yaml:"service"`                 // 通知服务: slack, discord, email, webhook
+	Threshold       int                    `yaml:"threshold"`               // 预警阈值 (命中次数) (默认 5)
+	PayloadTemplate string                 `yaml:"payload_template"`        // 消息模板 (使用 Go 模板语法)
+	PayloadTitle    string                 `yaml:"payload_title,omitempty"` // 消息标题 (可选)
+	Config          map[string]interface{} `yaml:"config,omitempty"`        // 服务配置 (如 webhook_url, token 等)
 }
 
 // RiskIPData 存储下载的风险IP数据（同时用于 safe_list 和 risk_list）

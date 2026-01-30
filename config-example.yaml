@@ -152,6 +152,7 @@ notifications:
       # 触发通知的阈值 (同一 IP 命中次数)
       # 默认值: 5
       threshold: 5
+      payload_title: "Risk IP Alert" # 消息标题 (可选)
       # 消息模板 (使用 Go 模板语法)
       # 可用变量:
       #   {{.IP}}        - 风险 IP 地址
