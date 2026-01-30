@@ -77,46 +77,13 @@ func Uint32ToIPv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
 }
 
-// InitWhitelist 初始化白名单，将字符串列表转换为预处理的uint32和CIDR
-func InitWhitelist(whitelist []string) {
-	WhitelistIPs = nil
-	WhitelistCIDRs = nil
-	for _, entry := range whitelist {
-		if strings.Contains(entry, "/") {
-			_, network, err := net.ParseCIDR(entry)
-			if err != nil {
-				logrus.Warnf("Invalid CIDR in whitelist: %s", entry)
-				continue // invalid, skip
-			}
-			WhitelistCIDRs = append(WhitelistCIDRs, network)
-		} else {
-			ipUint, err := IPv4ToUint32(entry)
-			if err != nil {
-				logrus.Warnf("Invalid IP in whitelist: %s", entry)
-				continue
-			}
-			WhitelistIPs = append(WhitelistIPs, ipUint)
-		}
+// IsIPInSafeList 检查 IP 是否在安全列表中
+func IsIPInSafeList(ip uint32) bool {
+	if SafeListData == nil {
+		return false
 	}
-	logrus.Infof("Initialized whitelist with %d IP/CIDR", len(WhitelistIPs)+len(WhitelistCIDRs))
-}
-
-// IsIPInWhitelist 检查 IP 是否在白名单内
-func IsIPInWhitelist(ip uint32) bool {
-	// 检查单个 IP
-	for _, wip := range WhitelistIPs {
-		if ip == wip {
-			return true
-		}
-	}
-	// 检查 CIDR
-	ipNet := Uint32ToIPv4(ip)
-	for _, network := range WhitelistCIDRs {
-		if network.Contains(ipNet) {
-			return true
-		}
-	}
-	return false
+	found, _ := SafeListData.Contains(ip)
+	return found
 }
 
 // AddNotificationItem 添加通知项
@@ -200,22 +167,17 @@ func ExtractIPFromLine(line string) (uint32, error) {
 
 // IsSensitiveIP 检测IP是否敏感
 func IsSensitiveIP(ip uint32) (bool, string) {
-	// 2. 判断是否在白名单中
-	if IsIPInWhitelist(ip) {
+	// 判断是否在安全列表中（白名单）
+	if IsIPInSafeList(ip) {
 		return false, ""
 	}
-	// 3. 判断是否在风险IP列表中
-	if RiskIPDataInstance == nil {
+	// 判断是否在风险IP列表中
+	if RiskListData == nil {
 		return false, ""
 	}
-	RiskIPDataInstance.mu.RLock()
-	defer RiskIPDataInstance.mu.RUnlock()
-	for name, ips := range RiskIPDataInstance.data {
-		for _, riskIP := range ips {
-			if ip == riskIP {
-				return true, name
-			}
-		}
+	found, name := RiskListData.Contains(ip)
+	if found {
+		return true, name
 	}
 	return false, ""
 }
