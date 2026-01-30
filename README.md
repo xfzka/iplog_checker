@@ -139,6 +139,7 @@ vim config.yaml
 | `pushbullet` | Pushbullet          | `token`                                 |
 | `rocketchat` | Rocket.Chat         | `url`, `user_id`, `token`, `channel`    |
 | `wechat`     | 微信公众号/企业微信 | `app_id`, `app_secret`, `open_id`       |
+| `dingding`   | DingTalk (钉钉)     | `token`, `secret`                       |
 | `webpush`    | 浏览器推送          | `vapid_public_key`, `vapid_private_key` |
 
 ## 配置示例
@@ -205,6 +206,19 @@ notifications:
       config:
         token: "xoxb-your-slack-token"
         channel: "#security-alerts"
+```
+
+### DingTalk 通知示例
+
+```yaml
+notifications:
+  services:
+    - service: "dingding"
+      threshold: 5
+      payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
+      config:
+        token: "your-dingtalk-token"
+        secret: "your-dingtalk-secret"
 ```
 
 ## 注意事项

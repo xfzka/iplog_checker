@@ -306,7 +306,21 @@ notifications:
     #     channel: "#security"
 
     # ========================================
-    # 9. WeChat (微信公众号/企业微信)
+    # 9. DingTalk (钉钉)
+    # ========================================
+    # 适用于: 在中国常用的企业/群组通知
+    # 参考: https://github.com/nikoksr/notify/tree/main/service/dingding
+    - service: "dingding"
+      threshold: 5
+      payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
+      config:
+        # DingTalk Access Token (必填)
+        token: "your-dingtalk-token"
+        # DingTalk Secret (必填)
+        secret: "your-dingtalk-secret"
+
+    # ========================================
+    # 10. WeChat (微信公众号/企业微信)
     # ========================================
     # 适用于: 中国区用户
     # 参考: https://github.com/nikoksr/notify/tree/main/service/wechat
