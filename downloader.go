@@ -112,7 +112,11 @@ func downloadAndParse(client *req.Client, list RiskIPList, data *RiskIPData) err
 	}
 
 	data.Set(list.URL, ips)
-	logrus.Infof("Downloaded %d IPs from %s", len(ips), list.URL)
+	source := list.Name
+	if source == "" {
+		source = list.URL
+	}
+	logrus.Infof("Downloaded %d IPs from %s, %s", len(ips), source, list.URL)
 	return nil
 }
 

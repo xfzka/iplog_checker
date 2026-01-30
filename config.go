@@ -23,6 +23,7 @@ type Logging struct {
 
 // RiskIPList 风险 IP 列表配置
 type RiskIPList struct {
+	Name           string            `yaml:"name"`                     // 风险 IP 列表名称 (用于日志输出和标记 IP 来源)
 	URL            string            `yaml:"url"`                      // 风险 IP 列表的 URL
 	UpdateInterval time.Duration     `yaml:"update_interval"`          // 更新间隔 (支持 h/m/s, 默认 24h)
 	Format         string            `yaml:"format"`                   // 格式: text, csv, json
