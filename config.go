@@ -26,7 +26,7 @@ func watchConfigFile() {
 	}
 	defer watcher.Close()
 
-	err = watcher.Add("config.yaml")
+	err = watcher.Add(ConfigFilePath)
 	if err != nil {
 		logrus.Errorf("Failed to watch config file: %v", err)
 		return

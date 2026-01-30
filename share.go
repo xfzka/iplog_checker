@@ -5,6 +5,7 @@ import (
 )
 
 var config Config
+var ConfigFilePath string = "config.yaml"
 
 var Whitelist []string
 var WhitelistIPs []uint32

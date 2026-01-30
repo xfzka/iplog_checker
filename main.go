@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 func initAPP() error {
-	data, err := os.ReadFile("config.yaml")
+	data, err := os.ReadFile(ConfigFilePath)
 	if err != nil {
 		return fmt.Errorf("Error reading config file: %v\n", err)
 	}
@@ -68,6 +69,10 @@ func StartIPLogFileProcessors(config *Config) {
 }
 
 func main() {
+	flag.StringVar(&ConfigFilePath, "config", ConfigFilePath, "path to config file")
+	flag.StringVar(&ConfigFilePath, "c", ConfigFilePath, "path to config file")
+	flag.Parse()
+
 	err := initAPP()
 	if err != nil {
 		fmt.Printf("Failed to initialize app: %v\n", err)
