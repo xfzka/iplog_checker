@@ -33,6 +33,9 @@ func main() {
 	logrus.Info("Configuration loaded successfully")
 	logrus.Debugf("Config: %+v", config)
 
+	// 设置白名单
+	Whitelist = config.WhitelistIPs
+
 	// 初始化风险IP数据
 	riskIPData := NewRiskIPData()
 

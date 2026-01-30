@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
 )
+
+var Whitelist []string
 
 // ParseDuration 解析时间字符串，如 "30d" -> 30*24*time.Hour
 func ParseDuration(s string) (time.Duration, error) {
@@ -52,4 +55,26 @@ func IPv4ToUint32(ip string) (uint32, error) {
 		result |= uint32(num) << ((3 - i) * 8)
 	}
 	return result, nil
+}
+
+// IsIPInWhitelist 检查 IP 是否在白名单内
+func IsIPInWhitelist(ip string) bool {
+	for _, entry := range Whitelist {
+		if strings.Contains(entry, "/") {
+			// CIDR
+			_, network, err := net.ParseCIDR(entry)
+			if err != nil {
+				continue // invalid, skip
+			}
+			if network.Contains(net.ParseIP(ip)) {
+				return true
+			}
+		} else {
+			// single IP
+			if ip == entry {
+				return true
+			}
+		}
+	}
+	return false
 }
