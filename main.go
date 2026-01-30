@@ -9,29 +9,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func main() {
+func initAPP() error {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {
-		fmt.Printf("Error reading config file: %v\n", err)
-		return
+		return fmt.Errorf("Error reading config file: %v\n", err)
 	}
 
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		fmt.Printf("Error parsing YAML: %v\n", err)
-		return
+		return fmt.Errorf("Error parsing YAML: %v\n", err)
 	}
 
-	// 初始化日志
-	err = initLogger(&config.Logging)
+	// 初始化应用配置
+	err = initAppConfig(&config)
 	if err != nil {
-		fmt.Printf("Error initializing logger: %v\n", err)
-		return
+		return fmt.Errorf("Error initializing app config: %v\n", err)
 	}
-
-	logrus.Info("Configuration loaded successfully")
-	logrus.Debugf("Config: %+v", config)
 
 	// 设置白名单
 	Whitelist = config.WhitelistIPs
@@ -55,9 +49,19 @@ func main() {
 
 	// 如果启用了自动重载配置，则启动文件监控
 	if config.AutoReloadConfig {
-		go watchConfigFile("config.yaml", &config)
+		go watchConfigFile("config.yaml")
 	}
 
-	// 启动日志监控或其他逻辑
-	// ... (假设有其他逻辑)
+	return nil
+}
+
+func main() {
+	err := initAPP()
+	if err != nil {
+		fmt.Printf("Failed to initialize app: %v\n", err)
+		return
+	}
+
+	// 主程序逻辑在此处继续...
+	select {}
 }

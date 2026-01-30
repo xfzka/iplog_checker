@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 )
 
 // Config 表示根配置结构
@@ -64,8 +62,18 @@ type CurlConfig struct {
 	RetryCount      int               `yaml:"retry_count,omitempty"` // 重试次数 (默认 2)
 }
 
+// initAppConfig 初始化应用配置（日志、白名单等）
+func initAppConfig(config *Config) error {
+	// 初始化日志
+	err := initLogger(&config.Logging)
+	if err != nil {
+		return fmt.Errorf("error initializing logger: %v", err)
+	}
+	return nil
+}
+
 // watchConfigFile 监控配置文件变更并自动重载
-func watchConfigFile(configPath string, config *Config) {
+func watchConfigFile(configPath string) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logrus.Errorf("Failed to create file watcher: %v", err)
@@ -89,7 +97,7 @@ func watchConfigFile(configPath string, config *Config) {
 			}
 			if event.Has(fsnotify.Write) {
 				logrus.Info("Config file changed, reloading...")
-				err := reloadConfig(configPath, config)
+				err := initAPP()
 				if err != nil {
 					logrus.Errorf("Failed to reload config: %v", err)
 				} else {
@@ -103,35 +111,4 @@ func watchConfigFile(configPath string, config *Config) {
 			logrus.Errorf("File watcher error: %v", err)
 		}
 	}
-}
-
-// reloadConfig 重新加载配置文件
-func reloadConfig(configPath string, config *Config) error {
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("error reading config file: %v", err)
-	}
-
-	var newConfig Config
-	err = yaml.Unmarshal(data, &newConfig)
-	if err != nil {
-		return fmt.Errorf("error parsing YAML: %v", err)
-	}
-
-	// 重新初始化日志（如果配置变更）
-	err = initLogger(&newConfig.Logging)
-	if err != nil {
-		return fmt.Errorf("error reinitializing logger: %v", err)
-	}
-
-	// 更新配置
-	*config = newConfig
-
-	// 重新设置白名单
-	Whitelist = config.WhitelistIPs
-
-	// 注意：风险IP下载goroutines可能需要重新启动，但这里简化处理
-	// 在实际应用中，可能需要停止旧的goroutines并启动新的
-
-	return nil
 }
