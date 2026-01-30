@@ -35,9 +35,13 @@ func main() {
 
 	// 设置白名单
 	Whitelist = config.WhitelistIPs
+	InitWhitelist(config.WhitelistIPs)
 
 	// 初始化风险IP数据
 	riskIPData := NewRiskIPData()
+
+	// 设置全局实例
+	RiskIPDataInstance = riskIPData
 
 	// 启动下载goroutines
 	DownloadRiskIPs(&config, riskIPData)

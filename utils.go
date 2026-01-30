@@ -6,9 +6,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 var Whitelist []string
+var WhitelistIPs []uint32
+var WhitelistCIDRs []*net.IPNet
+var RiskIPDataInstance *RiskIPData
 
 // ParseDuration 解析时间字符串，如 "30d" -> 30*24*time.Hour
 func ParseDuration(s string) (time.Duration, error) {
@@ -57,24 +62,70 @@ func IPv4ToUint32(ip string) (uint32, error) {
 	return result, nil
 }
 
-// IsIPInWhitelist 检查 IP 是否在白名单内
-func IsIPInWhitelist(ip string) bool {
-	for _, entry := range Whitelist {
+// Uint32ToIPv4 将uint32转换为net.IP
+func Uint32ToIPv4(ip uint32) net.IP {
+	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
+}
+
+// InitWhitelist 初始化白名单，将字符串列表转换为预处理的uint32和CIDR
+func InitWhitelist(whitelist []string) {
+	WhitelistIPs = nil
+	WhitelistCIDRs = nil
+	for _, entry := range whitelist {
 		if strings.Contains(entry, "/") {
-			// CIDR
 			_, network, err := net.ParseCIDR(entry)
 			if err != nil {
+				logrus.Warnf("Invalid CIDR in whitelist: %s", entry)
 				continue // invalid, skip
 			}
-			if network.Contains(net.ParseIP(ip)) {
-				return true
-			}
+			WhitelistCIDRs = append(WhitelistCIDRs, network)
 		} else {
-			// single IP
-			if ip == entry {
-				return true
+			ipUint, err := IPv4ToUint32(entry)
+			if err != nil {
+				logrus.Warnf("Invalid IP in whitelist: %s", entry)
+				continue
 			}
+			WhitelistIPs = append(WhitelistIPs, ipUint)
+		}
+	}
+}
+
+// IsIPInWhitelist 检查 IP 是否在白名单内
+func IsIPInWhitelist(ip uint32) bool {
+	// 检查单个 IP
+	for _, wip := range WhitelistIPs {
+		if ip == wip {
+			return true
+		}
+	}
+	// 检查 CIDR
+	ipNet := Uint32ToIPv4(ip)
+	for _, network := range WhitelistCIDRs {
+		if network.Contains(ipNet) {
+			return true
 		}
 	}
 	return false
+}
+
+// IsSensitiveIP 检测IP是否敏感
+func IsSensitiveIP(ip uint32) (bool, string) {
+	// 2. 判断是否在白名单中
+	if IsIPInWhitelist(ip) {
+		return false, ""
+	}
+	// 3. 判断是否在风险IP列表中
+	if RiskIPDataInstance == nil {
+		return false, ""
+	}
+	RiskIPDataInstance.mu.RLock()
+	defer RiskIPDataInstance.mu.RUnlock()
+	for name, ips := range RiskIPDataInstance.data {
+		for _, riskIP := range ips {
+			if ip == riskIP {
+				return true, name
+			}
+		}
+	}
+	return false, ""
 }
