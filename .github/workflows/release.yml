@@ -49,6 +49,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-build-${{ matrix.go-version }}-${{ matrix.os }}-${{ matrix.arch }}-
 
+      - name: Determine version
+        id: vars
+        shell: bash
+        run: |
+          echo "Determining version for release tag..."
+          VERSION="${{ github.ref_name }}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build
         shell: bash
         run: |
@@ -56,7 +64,7 @@ jobs:
           if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
           output="dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}${ext}"
           mkdir -p dist
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o "$output" ./...
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -ldflags "-X main.Version=${{ steps.vars.outputs.VERSION }}" -o "$output" .
           TAG=${{ github.ref_name }}
           tarname="iplog_checker-${{ matrix.os }}-${{ matrix.arch }}-${TAG}.tar.gz"
           tar -czf dist/${tarname} -C dist $(basename "$output")

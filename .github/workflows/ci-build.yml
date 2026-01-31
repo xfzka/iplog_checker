@@ -48,6 +48,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-build-${{ matrix.go-version }}-${{ matrix.os }}-${{ matrix.arch }}-
 
+      - name: Determine version
+        id: vars
+        shell: bash
+        run: |
+          echo "Determining version..."
+          # If HEAD is an exact tag, use it; otherwise use latest tag + short commit hash
+          if TAG=$(git describe --tags --exact-match 2>/dev/null); then
+            VERSION="$TAG"
+          else
+            git fetch --tags --prune
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0")
+            GITHASH=$(git rev-parse --short=8 HEAD)
+            VERSION="$LATEST_TAG - $GITHASH"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build binary
         shell: bash
         run: |
@@ -55,7 +71,7 @@ jobs:
           if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
           output="dist/iplog_checker-${{ matrix.os }}-${{ matrix.arch }}${ext}"
           mkdir -p dist
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o "$output" ./...
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -ldflags "-X main.Version=${{ steps.vars.outputs.VERSION }}" -o "$output" .
           ls -lh "$output"
 
       - name: Archive artifact
