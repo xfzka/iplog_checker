@@ -87,6 +87,36 @@ jobs:
         with:
           path: artifacts
 
+      - name: Generate release notes
+        id: gen_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=${{ github.ref_name }}
+
+          # Try to extract notes for the tag from CHANGELOG.md (supports headings starting with '##')
+          if [ -f CHANGELOG.md ]; then
+            awk -v TAG="$TAG" 'BEGIN{found=0;hdr="^##[[:space:]]*"} $0 ~ TAG {found=1; next} found && $0 ~ hdr {exit} found{print}' CHANGELOG.md > release_notes.md || true
+          fi
+
+          # If no CHANGELOG section found or empty, fall back to git log since previous tag
+          if [ ! -s release_notes.md ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 ${TAG}^ 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ]; then
+              git log ${PREV_TAG}..HEAD --pretty=format:'- %s (%an)' > release_notes.md || true
+            else
+              git log -n 200 --pretty=format:'- %s (%an)' > release_notes.md || true
+            fi
+          fi
+
+          # Final fallback
+          if [ ! -s release_notes.md ]; then
+            echo "No release notes available" > release_notes.md
+          fi
+
+          echo "--- Release notes for $TAG ---"
+          cat release_notes.md
+
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
@@ -95,6 +125,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           release_name: ${{ github.ref_name }}
+          body_path: release_notes.md
           draft: false
           prerelease: false
 
