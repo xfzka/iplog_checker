@@ -177,6 +177,23 @@ notifications:
           X-Custom-Header: "custom_value"
 
     # ========================================
+    # Curl (自定义 HTTP 请求，使用内置 curl 功能，基于 req/v3)
+    # ========================================
+    # 行为说明：
+    # - 当 method 为 POST 时，直接将 message 作为 body 发送
+    # - 其它 method（如 GET/PUT/DELETE 等）会将 title 与 message URL 编码后追加到 URL 的查询参数中发送
+    - service: "curl"
+      threshold: 5
+      payload_title: "Risk IP Alert"
+      payload_template: "{{.IP}} - {{.Count}} hits from {{.Source}} at {{.Time}}"
+      config:
+        url: "https://example.com/curl_endpoint"
+        # 可选：GET/POST/PUT/DELETE/PATCH 等，默认 GET
+        method: "GET"
+        headers:
+          Authorization: "Bearer your_token"
+
+    # ========================================
     # 2. Slack
     # ========================================
     # 适用于: 使用 Slack 的团队

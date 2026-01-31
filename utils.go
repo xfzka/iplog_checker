@@ -12,7 +12,9 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"net/url"
 
+	"github.com/imroc/req/v3"
 	"github.com/nikoksr/notify"
 	"github.com/nikoksr/notify/service/bark"
 	"github.com/nikoksr/notify/service/discord"
@@ -432,7 +434,93 @@ func sendNotification(notif Notification, message string) {
 			webpushSvc := webpush.New(vapidPublicKey, vapidPrivateKey)
 			// For webpush, subscription is complex, assume it's in config as string or something, but for simplicity, skip adding receivers here
 			service = webpushSvc
-		default:
+case "curl":
+				urlStr, ok := notif.Config["url"].(string)
+				if !ok {
+					logrus.Errorf("Curl url not configured or not string")
+					return
+				}
+				method := "GET"
+				if m, ok := notif.Config["method"].(string); ok {
+					method = strings.ToUpper(m)
+				}
+				headers := map[string]string{}
+				if h, ok := notif.Config["headers"].(map[string]interface{}); ok {
+					for k, v := range h {
+						if s, ok := v.(string); ok {
+							headers[k] = s
+						}
+					}
+				}
+
+				c := req.C()
+				r := c.R().SetHeaders(headers)
+				var resp *req.Response
+				var rerr error
+				if method == "POST" {
+					r = r.SetBodyString(message)
+					resp, rerr = r.Post(urlStr)
+				} else {
+					// 将 title 与 message URL 编码并拼接到 URL 上
+					title := notif.PayloadTitle
+					if title == "" {
+						title = "Risk IP Alert"
+					}
+					u, perr := url.Parse(urlStr)
+					if perr != nil {
+						rerr = perr
+					} else {
+						q := u.Query()
+						q.Set("title", title)
+						q.Set("message", message)
+						u.RawQuery = q.Encode()
+						switch method {
+						case "GET":
+							resp, rerr = r.Get(u.String())
+						case "PUT":
+							resp, rerr = r.Put(u.String())
+						case "DELETE":
+							resp, rerr = r.Delete(u.String())
+						case "PATCH":
+							resp, rerr = r.Patch(u.String())
+						case "HEAD":
+							resp, rerr = r.Head(u.String())
+						case "OPTIONS":
+							resp, rerr = r.Options(u.String())
+						default:
+							resp, rerr = r.Get(u.String())
+						}
+					}
+				}
+
+				if rerr == nil && resp != nil && resp.IsSuccessState() {
+					return
+				}
+				if rerr != nil {
+					err = rerr
+				} else if resp != nil {
+					err = fmt.Errorf("curl request failed, status: %s", resp.Status)
+				} else {
+					err = fmt.Errorf("curl request failed: unknown error")
+				}
+
+				// 由于 curl 已经直接发送请求，这里处理重试逻辑并跳过下面使用 notify 的步骤
+				if strings.ToLower(notif.Service) == "curl" {
+					if err == nil {
+						return
+					}
+					if i < retryCount {
+						logrus.Warnf("Curl notification failed, retrying (%d/%d): %v", i+1, retryCount, err)
+						wait := time.Second * time.Duration(i+1)
+						logrus.Debugf("Next curl notification retry after %s", wait.String())
+						time.Sleep(wait)
+						continue
+					}
+					logrus.Errorf("Failed to send curl notification after %d retries: %v", retryCount, err)
+					return
+				}
+
+			default:
 			logrus.Errorf("Unsupported notification service: %s", notif.Service)
 			return
 		}

@@ -187,6 +187,26 @@ notifications:
       payload_template: '{"ip": "{{.IP}}", "count": {{.Count}}}'
       config:
         url: "https://your-webhook-url.com"
+
+# 通知: Curl (内置 curl 功能，基于 req/v3) 🔧
+
+> 行为说明：
+> - 当 `method` 为 `POST` 时，直接将 `message` 作为请求 body 发送。
+> - 其它 method（如 `GET` / `PUT` / `DELETE`）会将 `title` 与 `message` URL 编码并追加到 URL 的查询参数中发送。
+
+```yaml
+notifications:
+  services:
+    - service: "curl"
+      threshold: 5
+      payload_title: "Risk IP Alert"
+      payload_template: "{{.IP}} - {{.Count}} hits from {{.Source}} at {{.Time}}"
+      config:
+        url: "https://example.com/curl_endpoint"
+        method: "GET"
+        headers:
+          Authorization: "Bearer your_token"
+```
 ```
 
 ### Telegram 通知示例
