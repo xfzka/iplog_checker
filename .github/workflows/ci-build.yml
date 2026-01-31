@@ -32,6 +32,12 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Prepare Go cache dirs
+        run: |
+          mkdir -p "${GOMODCACHE}" "${GOCACHE}"
+          rm -rf "${GOMODCACHE}"/* || true
+          rm -rf "${GOCACHE}"/* || true
+
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
