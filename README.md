@@ -153,7 +153,7 @@ vim config.yaml
 
 ### 基础配置示例
 
-```yaml
+````yaml
 # 日志配置
 logging:
   level: "info"
@@ -191,7 +191,7 @@ notifications:
 # 通知: Curl (内置 curl 功能，基于 req/v3) 🔧
 
 > 行为说明：
-> - 当 `method` 为 `POST` 时，直接将 `message` 作为请求 body 发送。
+> - 当 `method` 为 `POST` 时，直接将 `message` 作为请求 body 发送, 如果你的数据内容想以 json 形式发送, 记得加入 `Content-Type: application/json` header 。
 > - 其它 method（如 `GET` / `PUT` / `DELETE`）会将 `title` 与 `message` URL 编码并追加到 URL 的查询参数中发送。
 
 ```yaml
@@ -206,8 +206,7 @@ notifications:
         method: "GET"
         headers:
           Authorization: "Bearer your_token"
-```
-```
+````
 
 ### Telegram 通知示例
 

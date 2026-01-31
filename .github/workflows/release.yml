@@ -33,6 +33,12 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Prepare Go cache dirs
+        run: |
+          mkdir -p "${GOMODCACHE}" "${GOCACHE}"
+          rm -rf "${GOMODCACHE}"/* || true
+          rm -rf "${GOCACHE}"/* || true
+
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -122,37 +128,17 @@ jobs:
           cat release_notes.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (no deprecated set-output)
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body: ${{ steps.gen_notes.outputs.release_notes }}
-          draft: false
-          prerelease: false
+          files: |
+            artifacts/*/*
 
-      - name: Upload all assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # strip "{?name,label}" from upload_url returned by actions/create-release
-          upload_url="${{ steps.create_release.outputs.upload_url }}"
-          upload_url="${upload_url%\{*}"
-          echo "Upload URL: $upload_url"
-          for dir in artifacts/*; do
-            # each artifact is placed in a subdir, upload files inside
-            for f in "$dir"/*; do
-              [ -f "$f" ] || continue
-              filename=$(basename "$f")
-              echo "Uploading $filename"
-              # use -S to show error body on failure
-              curl -S --fail -X POST \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Content-Type: application/gzip" \
-                --data-binary @"$f" "$upload_url?name=$filename"
-            done
-          done
+      - name: Upload assets (handled by release action)
+        run: echo "Assets uploaded by softprops/action-gh-release"
