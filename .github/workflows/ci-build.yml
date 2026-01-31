@@ -60,7 +60,8 @@ jobs:
             git fetch --tags --prune
             LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0")
             GITHASH=$(git rev-parse --short=8 HEAD)
-            VERSION="$LATEST_TAG - $GITHASH"
+            # Use a safe format without spaces to avoid ldflags parsing issues
+            VERSION="${LATEST_TAG}-${GITHASH}"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
