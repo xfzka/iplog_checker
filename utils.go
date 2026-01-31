@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	nethttp "net/http"
-	"net/http/httputil"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -455,27 +454,15 @@ func sendNotification(notif Notification, message string) {
 			}
 
 			c := req.C()
+			if logrus.IsLevelEnabled(logrus.DebugLevel) {
+				c.EnableDebugLog()
+			}
 			r := c.R().SetHeaders(headers)
 			var resp *req.Response
 			var rerr error
 			if method == "POST" {
 				r = r.SetBodyString(message)
-				// Debug: 输出 POST 请求的 URL、headers 与 body，并尝试输出原始请求信息
-				if logrus.IsLevelEnabled(logrus.DebugLevel) {
-					httpReq, herr := nethttp.NewRequest(method, urlStr, strings.NewReader(message))
-					if herr == nil {
-						for k, v := range headers {
-							httpReq.Header.Set(k, v)
-						}
-						if dump, derr := httputil.DumpRequestOut(httpReq, true); derr == nil {
-							logrus.Debugf("Curl Raw Request:\n%s", string(dump))
-						} else {
-							logrus.Debugf("Curl Request: method=%s url=%s headers=%v body=%s (dump err: %v)", method, urlStr, headers, message, derr)
-						}
-					} else {
-						logrus.Debugf("Curl Request: method=%s url=%s headers=%v body=%s (new request err: %v)", method, urlStr, headers, message, herr)
-					}
-				}
+				logrus.Debugf("Curl Request (summary): method=%s url=%s headers=%v body=%s", method, urlStr, headers, message)
 				resp, rerr = r.Post(urlStr)
 			} else {
 				// 将 title 与 message URL 编码并拼接到 URL 上
@@ -491,23 +478,7 @@ func sendNotification(notif Notification, message string) {
 					q.Set("title", title)
 					q.Set("message", message)
 					u.RawQuery = q.Encode()
-					// Debug: 输出最终请求 URL 与 headers，并尝试输出原始请求信息（不包含 body）
-					if logrus.IsLevelEnabled(logrus.DebugLevel) {
-						logrus.Debugf("Curl Request: method=%s url=%s headers=%v", method, u.String(), headers)
-						httpReq, herr := nethttp.NewRequest(method, u.String(), nil)
-						if herr == nil {
-							for k, v := range headers {
-								httpReq.Header.Set(k, v)
-							}
-							if dump, derr := httputil.DumpRequestOut(httpReq, false); derr == nil {
-								logrus.Debugf("Curl Raw Request:\n%s", string(dump))
-							} else {
-								logrus.Debugf("Curl Raw Request failed to dump: %v", derr)
-							}
-						} else {
-							logrus.Debugf("Curl Request: new request err: %v", herr)
-						}
-					}
+					logrus.Debugf("Curl Request (summary): method=%s url=%s headers=%v", method, u.String(), headers)
 					switch method {
 					case "GET":
 						resp, rerr = r.Get(u.String())
