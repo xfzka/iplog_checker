@@ -43,6 +43,7 @@ type IPList struct {
 	CSVColumn            string            `yaml:"csv_column,omitempty"`     // CSV 列名 (仅 csv 格式)
 	JSONPath             string            `yaml:"json_path,omitempty"`      // JSON 路径 (仅 json 格式)
 	CustomHeaders        map[string]string `yaml:"custom_headers,omitempty"` // 自定义请求头 (仅 url)
+	Level                int               `yaml:"level,omitempty"`          // 列表等级 (仅 risk_list, 默认 1)
 }
 
 // TargetLog 目标日志文件配置
@@ -53,6 +54,7 @@ type TargetLog struct {
 	ReadInterval       string        `yaml:"read_interval,omitempty"` // 一次性读取间隔 (仅 once 模式, 支持 h/m/s/d, 默认 2h)
 	ReadIntervalParsed time.Duration // 解析后的读取间隔
 	CleanAfterRead     bool          `yaml:"clean_after_read,omitempty"` // 读取后清空 (仅 once 模式, 默认 false)
+	Level              int           `yaml:"level,omitempty"`            // 日志文件等级 (用于标记 IP 来源, 默认 1)
 }
 
 // Notification 通知配置
@@ -62,6 +64,7 @@ type Notification struct {
 	PayloadTemplate string                 `yaml:"payload_template"`        // 消息模板 (使用 Go 模板语法)
 	PayloadTitle    string                 `yaml:"payload_title,omitempty"` // 消息标题 (可选)
 	Config          map[string]interface{} `yaml:"config,omitempty"`        // 服务配置 (如 webhook_url, token 等)
+	Level           int                    `yaml:"level,omitempty"`         // 通知等级 (仅通知高于等于该等级的日志文件, 默认 1)
 }
 
 // RiskIPData 存储下载的风险IP数据（同时用于 safe_list 和 risk_list）
@@ -79,8 +82,42 @@ type IPNet struct {
 
 // NotificationItem 通知项结构体
 type NotificationItem struct {
-	IP        uint32
-	Count     int
-	Source    string // 来源文件
-	Timestamp int64  // 时间戳
+	IP             uint32
+	Count          int
+	SourceListInfo ListInfo // 来源列表信息
+	SourceLogInfo  ListInfo // 来源日志信息
+	Timestamp      int64    // 时间戳
+}
+
+// NewNotificationItem 创建新的通知项
+func NewNotificationItem(ip uint32, count int, finfo ListInfo, linfo ListInfo) NotificationItem {
+	return NotificationItem{
+		IP:             ip,
+		Count:          count,
+		SourceListInfo: finfo,
+		SourceLogInfo:  linfo,
+		Timestamp:      time.Now().Unix(),
+	}
+}
+
+// TemplateData 用于通知模板的数据结构
+type TemplateData struct {
+	IP             string
+	Count          int
+	SourceListInfo ListInfo
+	SourceLogInfo  ListInfo
+	Timestamp      int64
+	Time           string
+}
+
+// NewTemplateData 创建新的模板数据
+func NewTemplateData(ip string, count int, finfo ListInfo, linfo ListInfo, timestamp int64, timeStr string) TemplateData {
+	return TemplateData{
+		IP:             ip,
+		Count:          count,
+		SourceListInfo: finfo,
+		SourceLogInfo:  linfo,
+		Timestamp:      timestamp,
+		Time:           timeStr,
+	}
 }

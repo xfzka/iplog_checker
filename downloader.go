@@ -5,7 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"net"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
@@ -14,82 +14,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// NewIPData 创建新的IPData
-func NewIPData() *IPData {
-	return &IPData{
-		ips:   make(map[string][]uint32),
-		cidrs: make(map[string][]*IPNet),
-	}
-}
-
-// Set 设置IP列表
-func (r *IPData) Set(name string, ips []uint32, cidrs []*IPNet) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.ips[name] = ips
-	r.cidrs[name] = cidrs
-}
-
-// GetAllIPs 获取所有单个IP
-func (r *IPData) GetAllIPs() []uint32 {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	var all []uint32
-	for _, ips := range r.ips {
-		all = append(all, ips...)
-	}
-	return all
-}
-
-// GetTotalCount 获取总数
-func (r *IPData) GetTotalCount() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	total := 0
-	for _, ips := range r.ips {
-		total += len(ips)
-	}
-	for _, cidrs := range r.cidrs {
-		total += len(cidrs)
-	}
-	return total
-}
-
-// Contains 检查IP是否在列表中（支持单IP和CIDR匹配）
-func (r *IPData) Contains(ip uint32) (bool, string) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	// 检查单个IP
-	for name, ips := range r.ips {
-		for _, listIP := range ips {
-			if ip == listIP {
-				return true, name
-			}
-		}
-	}
-
-	// 检查CIDR
-	for name, cidrs := range r.cidrs {
-		for _, cidr := range cidrs {
-			if ip >= cidr.Start && ip <= cidr.End {
-				return true, name
-			}
-		}
-	}
-
-	return false, ""
-}
-
 // LoadIPList 加载IP列表（通用函数，用于 safe_list 和 risk_list）
-func LoadIPList(lists []IPList, data *IPData, listType string) {
+func LoadIPList(lists []IPList, data *ListGroup, listType string) {
 	client := req.C()
 
 	for _, list := range lists {
 		if len(list.IPs) > 0 {
-			// 从手动配置的IP列表加载
-			ips, cidrs := parseIPStrings(list.IPs)
-			data.Set(list.Name, ips, cidrs)
+			// 从手动配置的IP列表加载, 手动的优先级都是10
+			ips, cidrs := parseLines(list.IPs)
+			data.DelList(list.Name)
+			data.AddList(NewNetListInfo(list.Name, 10), ips, cidrs)
 			logrus.Infof("Loaded %d IPs and %d CIDRs from manual list [%s] %s", len(ips), len(cidrs), listType, list.Name)
 		} else if list.File != "" {
 			// 从文件加载
@@ -137,69 +71,14 @@ func LoadIPList(lists []IPList, data *IPData, listType string) {
 	}
 }
 
-// parseIPStrings 解析IP字符串列表（支持单IP和CIDR）
-func parseIPStrings(ipStrings []string) ([]uint32, []*IPNet) {
-	var ips []uint32
-	var cidrs []*IPNet
-
-	for _, entry := range ipStrings {
-		entry = strings.TrimSpace(entry)
-		if entry == "" || strings.HasPrefix(entry, "#") {
-			continue
-		}
-
-		if strings.Contains(entry, "/") {
-			// CIDR格式
-			cidr := parseCIDR(entry)
-			if cidr != nil {
-				cidrs = append(cidrs, cidr)
-			}
-		} else {
-			// 单个IP
-			ip, err := IPv4ToUint32(entry)
-			if err != nil {
-				logrus.Warnf("Invalid IP: %s, skipping", entry)
-				continue
-			}
-			ips = append(ips, ip)
-		}
-	}
-
-	return ips, cidrs
-}
-
-// parseCIDR 解析CIDR格式并返回IPNet
-func parseCIDR(cidrStr string) *IPNet {
-	_, network, err := net.ParseCIDR(cidrStr)
-	if err != nil {
-		logrus.Warnf("Invalid CIDR: %s, skipping", cidrStr)
-		return nil
-	}
-
-	// 计算起始和结束IP
-	startIP := ipToUint32(network.IP)
-	mask := network.Mask
-	ones, bits := mask.Size()
-	hostBits := uint(bits - ones)
-	endIP := startIP | (uint32(1<<hostBits) - 1)
-
-	return &IPNet{
-		Start: startIP,
-		End:   endIP,
-	}
-}
-
-// ipToUint32 将net.IP转换为uint32
-func ipToUint32(ip net.IP) uint32 {
-	ip = ip.To4()
-	if ip == nil {
-		return 0
-	}
-	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
+// ipToUint32 将 netip.Addr 转换为 uint32 (大端序逻辑适配 Trie)
+func ipToUint32(addr netip.Addr) uint32 {
+	b := addr.As4()
+	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 }
 
 // downloadAndParse 下载并解析IP列表
-func downloadAndParse(client *req.Client, list IPList, data *IPData, listType string) error {
+func downloadAndParse(client *req.Client, list IPList, data *ListGroup, listType string) error {
 	c := client
 	if list.TimeoutParsed > 0 {
 		c = client.SetTimeout(list.TimeoutParsed)
@@ -226,14 +105,11 @@ func downloadAndParse(client *req.Client, list IPList, data *IPData, listType st
 		return err
 	}
 
-	data.Set(list.Name, ips, cidrs)
-	source := list.Name
-	if source == "" {
-		source = list.URL
-	}
-	logrus.Infof("Downloaded %d IPs and %d CIDRs from [%s] %s, %s", len(ips), len(cidrs), listType, source, list.URL)
+	data.DelList(list.Name)
+	data.AddList(NewNetListInfo(list.Name, list.Level), ips, cidrs)
+	logrus.Infof("Downloaded %d IPs and %d CIDRs from [%s] %s, %s", len(ips), len(cidrs), listType, list.Name, list.URL)
 	if config.Logging.Level == "debug" {
-		logrus.Debugf("Top 10 IP from %s:", source)
+		logrus.Debugf("Top 10 IP from %s:", list.Name)
 		for i, ip := range ips {
 			if i >= 10 {
 				break
@@ -245,7 +121,7 @@ func downloadAndParse(client *req.Client, list IPList, data *IPData, listType st
 }
 
 // loadFromFile 从文件加载IP列表
-func loadFromFile(list IPList, data *IPData, listType string) error {
+func loadFromFile(list IPList, data *ListGroup, listType string) error {
 	body, err := os.ReadFile(list.File)
 	if err != nil {
 		return err
@@ -256,71 +132,54 @@ func loadFromFile(list IPList, data *IPData, listType string) error {
 		return err
 	}
 
-	data.Set(list.Name, ips, cidrs)
-	source := list.Name
-	if source == "" {
-		source = list.File
-	}
-	logrus.Infof("Loaded %d IPs and %d CIDRs from file [%s] %s", len(ips), len(cidrs), listType, source)
+	data.DelList(list.Name)
+	data.AddList(NewNetListInfo(list.Name, list.Level), ips, cidrs)
+	logrus.Infof("Loaded %d IPs and %d CIDRs from file [%s] %s", len(ips), len(cidrs), listType, list.Name)
 	return nil
 }
 
-// parseText 解析文本格式，每行一个IP（支持CIDR）
-func parseText(body string) ([]uint32, []*IPNet, error) {
-	var ips []uint32
-	var cidrs []*IPNet
+// parseIPsFromContent 根据格式解析IP列表（支持CIDR）
+func parseIPsFromContent(format, body, csvColumn, jsonPath string) ([]uint32, []netip.Prefix, error) {
+	switch strings.ToLower(format) {
+	case "text", "": // 默认文本格式
+		return parseText(body)
+	case "csv":
+		ips, cidrs, err := parseCSV(body, csvColumn)
+		return ips, cidrs, err
+	case "json":
+		ips, cidrs, err := parseJSON(body, jsonPath)
+		return ips, cidrs, err
+	default:
+		return nil, nil, fmt.Errorf("unsupported format: %s", format)
+	}
+}
 
+// parseText 解析文本格式，每行一个IP（支持CIDR）
+func parseText(body string) ([]uint32, []netip.Prefix, error) {
+	var lines []string
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-
-		if strings.Contains(line, "/") {
-			// CIDR格式
-			cidr := parseCIDR(line)
-			if cidr != nil {
-				cidrs = append(cidrs, cidr)
-			}
-		} else {
-			ip, err := IPv4ToUint32(line)
-			if err != nil {
-				logrus.Warnf("Invalid IP: %s, skipping", line)
-				continue
-			}
-			ips = append(ips, ip)
-		}
+		lines = append(lines, line)
 	}
+
+	ips, cidrs := parseLines(lines)
 	return ips, cidrs, scanner.Err()
 }
 
-// parseIPsFromContent 根据格式解析IP列表（支持CIDR）
-func parseIPsFromContent(format, body, csvColumn, jsonPath string) ([]uint32, []*IPNet, error) {
-	switch strings.ToLower(format) {
-	case "text", "":
-		return parseText(body)
-	case "csv":
-		ips, err := parseCSV(body, csvColumn)
-		return ips, nil, err
-	case "json":
-		ips, err := parseJSON(body, jsonPath)
-		return ips, nil, err
-	default:
-		return nil, nil, fmt.Errorf("unsupported format: %s", format)
-	}
-}
-
 // parseCSV 解析CSV格式
-func parseCSV(body, column string) ([]uint32, error) {
+func parseCSV(body, column string) ([]uint32, []netip.Prefix, error) {
 	reader := csv.NewReader(strings.NewReader(body))
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(records) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// 找到列索引
@@ -333,52 +192,71 @@ func parseCSV(body, column string) ([]uint32, error) {
 		}
 	}
 	if colIndex == -1 {
-		return nil, fmt.Errorf("column %s not found", column)
+		return nil, nil, fmt.Errorf("column %s not found", column)
 	}
 
-	var ips []uint32
+	var lines []string
 	for _, record := range records[1:] {
 		if colIndex < len(record) {
-			ipStr := strings.TrimSpace(record[colIndex])
-			if ipStr != "" {
-				ip, err := IPv4ToUint32(ipStr)
-				if err != nil {
-					logrus.Warnf("Invalid IP: %s, skipping", ipStr)
-					continue
-				}
-				ips = append(ips, ip)
+			ipdata := strings.TrimSpace(record[colIndex])
+			if ipdata != "" {
+				lines = append(lines, ipdata)
 			}
 		}
 	}
-	return ips, nil
+
+	ips, cidrs := parseLines(lines)
+	return ips, cidrs, nil
 }
 
 // parseJSON 解析JSON格式
-func parseJSON(body, path string) ([]uint32, error) {
+func parseJSON(body, path string) ([]uint32, []netip.Prefix, error) {
 	var data interface{}
 	err := json.Unmarshal([]byte(body), &data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 简单实现：假设path是顶级key
 	if m, ok := data.(map[string]interface{}); ok {
 		if val, exists := m[path]; exists {
 			if arr, ok := val.([]interface{}); ok {
-				var ips []uint32
+				var lines []string
 				for _, item := range arr {
 					if str, ok := item.(string); ok {
-						ip, err := IPv4ToUint32(str)
-						if err != nil {
-							logrus.Warnf("Invalid IP: %s, skipping", str)
-							continue
-						}
-						ips = append(ips, ip)
+						lines = append(lines, str)
 					}
 				}
-				return ips, nil
+				ips, cidrs := parseLines(lines)
+				return ips, cidrs, nil
 			}
 		}
 	}
-	return nil, fmt.Errorf("path %s not found or not an array", path)
+	return nil, nil, fmt.Errorf("path %s not found or not an array", path)
+}
+
+// parseLines 解析多行文本，返回IP和CIDR列表
+func parseLines(text []string) ([]uint32, []netip.Prefix) {
+	var ips []uint32
+	var cidrs []netip.Prefix
+	for _, line := range text {
+		if strings.Contains(line, "/") {
+			// CIDR格式
+			// 暂时不处理CIDR
+			perfix, err := netip.ParsePrefix(line)
+			if err != nil {
+				logrus.Warnf("Invalid CIDR: %s, skipping", line)
+				continue
+			}
+			cidrs = append(cidrs, perfix)
+		} else {
+			ip, err := IPv4ToUint32(line)
+			if err != nil {
+				logrus.Warnf("Invalid IP: %s, skipping", line)
+				continue
+			}
+			ips = append(ips, ip)
+		}
+	}
+	return ips, cidrs
 }

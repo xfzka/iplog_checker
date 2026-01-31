@@ -18,17 +18,14 @@ type NetList struct {
 }
 
 // NewNetList 创建新的 NetList
-func NewNetList(ips []netip.Addr, cidrs []netip.Prefix) *NetList {
+func NewNetList(ips []uint32, cidrs []netip.Prefix) *NetList {
 	nl := &NetList{
 		ips:      make(map[uint32]struct{}),
 		cidrRoot: &CIDRNode{},
 	}
 
-	for _, addr := range ips {
-		if addr.Is4() {
-			ip32 := ipToUint32(addr)
-			nl.ips[ip32] = struct{}{}
-		}
+	for _, ip32 := range ips {
+		nl.ips[ip32] = struct{}{}
 	}
 
 	for _, prefix := range cidrs {
@@ -78,26 +75,34 @@ func (nl *NetList) Contains(ip uint32) bool {
 	return matched
 }
 
-// NetListInfo 数据源信息
-type NetListInfo struct {
+// ListInfo 数据源信息
+type ListInfo struct {
 	Name  string // 数据源名称
 	Level int    // 数据源等级
 }
 
+// NewNetListInfo 创建新的 NetListInfo
+func NewNetListInfo(name string, level int) ListInfo {
+	return ListInfo{
+		Name:  name,
+		Level: level,
+	}
+}
+
 // ListGroup 管理多个 NetList
 type ListGroup struct {
-	AllList map[NetListInfo]*NetList
+	AllList map[ListInfo]*NetList
 }
 
 // NewListGroup 创建新的 ListGroup
 func NewListGroup() *ListGroup {
 	return &ListGroup{
-		AllList: make(map[NetListInfo]*NetList),
+		AllList: make(map[ListInfo]*NetList),
 	}
 }
 
 // AddList 添加新的 NetList 到 ListGroup
-func (lg *ListGroup) AddList(info NetListInfo, ips []netip.Addr, cidrs []netip.Prefix) {
+func (lg *ListGroup) AddList(info ListInfo, ips []uint32, cidrs []netip.Prefix) {
 	nl := NewNetList(ips, cidrs)
 	lg.AllList[info] = nl
 }
@@ -113,23 +118,23 @@ func (lg *ListGroup) DelList(name string) {
 }
 
 // Contains 检查 IP 是否在任何 NetList 中, 并发检查以提高效率, 任意一个匹配则返回 true 和对应的 NetListInfo
-func (lg *ListGroup) Contains(ip uint32) (bool, NetListInfo) {
+func (lg *ListGroup) Contains(ip uint32) (bool, ListInfo) {
 	var wg sync.WaitGroup
 	found := make(chan struct {
 		bool
-		NetListInfo
+		ListInfo
 	}, 1)
 
 	// 并发检查每个 NetList 是否包含指定 IP
 	for info, nl := range lg.AllList {
 		wg.Add(1)
-		go func(i NetListInfo, n *NetList) {
+		go func(i ListInfo, n *NetList) {
 			defer wg.Done()
 			if n.Contains(ip) {
 				select {
 				case found <- struct { // 找到任意一个就立即返回
 					bool
-					NetListInfo
+					ListInfo
 				}{true, i}:
 				default:
 				}
@@ -143,12 +148,12 @@ func (lg *ListGroup) Contains(ip uint32) (bool, NetListInfo) {
 		select {
 		case found <- struct {
 			bool
-			NetListInfo
-		}{false, NetListInfo{}}:
+			ListInfo
+		}{false, ListInfo{}}:
 		default:
 		}
 	}()
 
 	res := <-found
-	return res.bool, res.NetListInfo
+	return res.bool, res.ListInfo
 }

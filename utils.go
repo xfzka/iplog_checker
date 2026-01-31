@@ -91,36 +91,19 @@ func IsIPInSafeList(ip uint32) bool {
 }
 
 // AddNotificationItem 添加通知项
-func AddNotificationItem(ip uint32, source string) {
-	NotificationMap[ip] = append(NotificationMap[ip], NotificationItem{
-		IP:        ip,
-		Count:     len(NotificationMap[ip]) + 1,
-		Source:    source,
-		Timestamp: time.Now().Unix(),
-	})
+func AddNotificationItem(ip uint32, finfo ListInfo, linfo ListInfo) {
+	NotificationMap[ip] = append(NotificationMap[ip], NewNotificationItem(ip, len(NotificationMap[ip])+1, finfo, linfo))
 }
 
 // CheckAndNotify 检查是否达到阈值并通知
-func CheckAndNotify(threshold int, source string, isOnce bool) {
+func CheckAndNotify(threshold int, info ListInfo, isOnce bool) {
 	for ip, items := range NotificationMap {
 		if len(items) >= threshold {
 			// 获取最新项
 			latest := items[len(items)-1]
 			ipStr := Uint32ToIPv4(ip).String()
 			timeStr := time.Unix(latest.Timestamp, 0).Format("2006-01-02 15:04:05")
-			data := struct {
-				IP        string
-				Count     int
-				Source    string
-				Timestamp int64
-				Time      string
-			}{
-				IP:        ipStr,
-				Count:     latest.Count,
-				Source:    latest.Source,
-				Timestamp: latest.Timestamp,
-				Time:      timeStr,
-			}
+			data := NewTemplateData(ipStr, latest.Count, latest.SourceListInfo, latest.SourceLogInfo, latest.Timestamp, timeStr)
 
 			for _, notif := range config.Notifications.Services {
 				if latest.Count >= notif.Threshold {
@@ -142,7 +125,7 @@ func CheckAndNotify(threshold int, source string, isOnce bool) {
 				}
 			}
 
-			logrus.Infof("Notification triggered for IP %s from %s", ipStr, source)
+			logrus.Infof("Notification triggered for IP %s from %s, level: %d", ipStr, info.Name, info.Level)
 			if !isOnce {
 				// tail 模式下，通知后清理
 				delete(NotificationMap, ip)
@@ -170,20 +153,20 @@ func ExtractIPFromLine(line string) (uint32, error) {
 }
 
 // IsSensitiveIP 检测IP是否敏感
-func IsSensitiveIP(ip uint32) (bool, string) {
+func IsSensitiveIP(ip uint32) (bool, ListInfo) {
 	// 判断是否在安全列表中（白名单）
 	if IsIPInSafeList(ip) {
-		return false, ""
+		return false, ListInfo{}
 	}
 	// 判断是否在风险IP列表中
 	if RiskListData == nil {
-		return false, ""
+		return false, ListInfo{}
 	}
-	found, name := RiskListData.Contains(ip)
+	found, info := RiskListData.Contains(ip)
 	if found {
-		return true, name
+		return true, info
 	}
-	return false, ""
+	return false, ListInfo{}
 }
 
 // sendNotification 发送通知

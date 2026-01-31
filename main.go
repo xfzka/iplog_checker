@@ -28,9 +28,9 @@ func initAPP() error {
 	}
 
 	// 初始化安全IP数据 (白名单)
-	SafeListData = NewIPData()
+	SafeListData = NewListGroup()
 	// 初始化风险IP数据
-	RiskListData = NewIPData()
+	RiskListData = NewListGroup()
 
 	// 启动加载goroutines
 	LoadIPList(config.SafeList, SafeListData, "safe_list")
@@ -38,12 +38,6 @@ func initAPP() error {
 
 	// 等待初始加载完成 (简单等待10秒)
 	time.Sleep(10 * time.Second)
-
-	// 输出总数
-	safeCount := SafeListData.GetTotalCount()
-	riskCount := RiskListData.GetTotalCount()
-	logrus.Infof("Total safe IPs/CIDRs loaded: %d", safeCount)
-	logrus.Infof("Total risk IPs/CIDRs loaded: %d", riskCount)
 
 	// 启动目标日志文件处理goroutines
 	StartTargetLogProcessors(&config)

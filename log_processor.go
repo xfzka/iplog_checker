@@ -23,6 +23,7 @@ func processOnceMode(lf TargetLog) {
 
 // processFileOnce 一次性处理文件
 func processFileOnce(lf TargetLog) {
+	var info = NewNetListInfo(lf.Name, lf.Level)
 	// 检查文件是否存在，不存在则跳过本次读取
 	if _, err := os.Stat(lf.Path); os.IsNotExist(err) {
 		logrus.Warnf("File %s does not exist, skipping this read cycle", lf.Path)
@@ -39,13 +40,13 @@ func processFileOnce(lf TargetLog) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		processLine(line, lf.Name)
+		processLine(line, info)
 	}
 	if err := scanner.Err(); err != nil {
 		logrus.Errorf("Error reading file %s: %v", lf.Path, err)
 	}
 	// once 模式下，读取完后检查通知
-	CheckAndNotify(getThreshold(), lf.Name, true)
+	CheckAndNotify(getThreshold(), info, true)
 
 	// 如果配置了 clean_after_read，则清空文件
 	if lf.CleanAfterRead {
@@ -59,6 +60,7 @@ func processFileOnce(lf TargetLog) {
 
 // processTailMode 处理tail模式
 func processTailMode(lf TargetLog) {
+	var info = NewNetListInfo(lf.Name, lf.Level)
 	for {
 		// 等待文件存在
 		for {
@@ -85,10 +87,10 @@ func processTailMode(lf TargetLog) {
 				logrus.Errorf("Error reading line from %s: %v", lf.Path, line.Err)
 				continue
 			}
-			logrus.Debugf("Read line from %s: %s", lf.Name, line.Text)
-			processLine(line.Text, lf.Name)
+			logrus.Debugf("Read line from %s, level: %d, line: %s", lf.Name, info.Level, line.Text)
+			processLine(line.Text, info)
 			// tail 模式下，每行后检查通知
-			CheckAndNotify(getThreshold(), lf.Name, false)
+			CheckAndNotify(getThreshold(), info, false)
 		}
 
 		// 如果 tail 退出（例如文件被删除），重新开始循环
@@ -98,15 +100,15 @@ func processTailMode(lf TargetLog) {
 }
 
 // processLine 处理单行日志
-func processLine(line, source string) {
+func processLine(line string, finfo ListInfo) {
 	ip, err := ExtractIPFromLine(line)
 	if err != nil {
 		// 没有IP，跳过
 		return
 	}
-	if isSensitive, name := IsSensitiveIP(ip); isSensitive {
-		logrus.Warnf("Found sensitive IP %s from %s in line: %s", Uint32ToIPv4(ip).String(), name, line)
-		AddNotificationItem(ip, source)
+	if isSensitive, linfo := IsSensitiveIP(ip); isSensitive {
+		logrus.Warnf("Found sensitive IP %s from %s in line: %s", Uint32ToIPv4(ip).String(), linfo.Name, line)
+		AddNotificationItem(ip, finfo, linfo)
 	}
 }
 
