@@ -69,7 +69,17 @@ func StartTargetLogProcessors(config *Config) {
 func main() {
 	flag.StringVar(&ConfigFilePath, "config", ConfigFilePath, "path to config file")
 	flag.StringVar(&ConfigFilePath, "c", ConfigFilePath, "path to config file")
+
+	var showVersion bool
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
+	flag.BoolVar(&showVersion, "v", false, "print version and exit")
+
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println(Version)
+		return
+	}
 
 	err := initAPP()
 	if err != nil {

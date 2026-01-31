@@ -19,8 +19,15 @@
 git clone https://github.com/xfzka/iplog_checker.git
 cd iplog_checker
 
-# 编译
-go build -o iplog_checker .
+# 构建
+CI：GitHub Actions 会在推送到 `main` 分支或创建 `v*` tag 时自动构建并在 Release 中上传构建产物。
+
+# 本地构建（如需）：
+VERSION=$(git describe --tags --exact-match 2>/dev/null || echo "$(git describe --tags --abbrev=0)-$(git rev-parse --short=8 HEAD)") && \
+  go build -ldflags "-X main.Version=$VERSION" -o iplog_checker .
+
+# 查看版本
+./iplog_checker -v
 ```
 
 ### 2. 配置

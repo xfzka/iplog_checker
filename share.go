@@ -5,3 +5,7 @@ var ConfigFilePath string = "config.yaml"                 // 默认配置文件�
 var SafeListData *IPData                                  // 全局安全 IP 数据实例 (白名单)
 var RiskListData *IPData                                  // 全局风险 IP 数据实例
 var NotificationMap = make(map[uint32][]NotificationItem) // 全局通知映射
+
+// Version will be set at build time via -ldflags "-X main.Version=..."
+// If not set during build, it defaults to "dev".
+var Version string = "dev"
