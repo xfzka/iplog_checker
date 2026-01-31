@@ -14,8 +14,9 @@ jobs:
     name: Build ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ubuntu-latest
     env:
-      GOCACHE: ${{ github.workspace }}/.gocache
-      GOMODCACHE: ${{ github.workspace }}/.gomodcache
+      # Use per-matrix cache dirs to avoid concurrent restores writing to the same path
+      GOCACHE: ${{ github.workspace }}/.gocache-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.go-version }}
+      GOMODCACHE: ${{ github.workspace }}/.gomodcache-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.go-version }}
     strategy:
       fail-fast: false
       matrix:
