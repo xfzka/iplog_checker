@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	nethttp "net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -77,8 +77,8 @@ func IPv4ToUint32(ip string) (uint32, error) {
 }
 
 // Uint32ToIPv4 将uint32转换为net.IP
-func Uint32ToIPv4(ip uint32) net.IP {
-	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
+func Uint32ToIPv4(ip uint32) netip.Addr {
+	return netip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip)})
 }
 
 // IsIPInSafeList 检查 IP 是否在安全列表中

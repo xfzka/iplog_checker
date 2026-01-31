@@ -1,7 +1,6 @@
 package main
 
 import (
-	"sync"
 	"time"
 )
 
@@ -65,19 +64,6 @@ type Notification struct {
 	PayloadTitle    string                 `yaml:"payload_title,omitempty"` // 消息标题 (可选)
 	Config          map[string]interface{} `yaml:"config,omitempty"`        // 服务配置 (如 webhook_url, token 等)
 	Level           int                    `yaml:"level,omitempty"`         // 通知等级 (仅通知高于等于该等级的日志文件, 默认 1)
-}
-
-// RiskIPData 存储下载的风险IP数据（同时用于 safe_list 和 risk_list）
-type IPData struct {
-	mu    sync.RWMutex
-	ips   map[string][]uint32 // key: Name, value: IP list as uint32
-	cidrs map[string][]*IPNet // key: Name, value: CIDR list
-}
-
-// IPNet 包装 CIDR 信息
-type IPNet struct {
-	Start uint32 // CIDR 起始 IP
-	End   uint32 // CIDR 结束 IP
 }
 
 // NotificationItem 通知项结构体
