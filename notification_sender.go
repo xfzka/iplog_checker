@@ -49,7 +49,7 @@ func AddPendingNotification(notif Notification, message, title string, data Temp
 // CheckAndNotify 检查是否达到阈值并将通知加入队列 (异步发送)
 // 该函数检查所有待处理的 IP，对于满足条件的通知加入 PendingNotifications 队列
 // 通知由独立的 goroutine 定时检查并发送
-func CheckAndNotify(_threshold int, info ListInfo, isOnce bool) {
+func CheckAndNotify(info ListInfo, isOnce bool) {
 	NotificationMapMutex.Lock()
 	defer NotificationMapMutex.Unlock()
 

@@ -60,7 +60,7 @@ func processFileOnce(lf TargetLog) {
 		logrus.Errorf("Error reading file %s: %v", lf.Path, err)
 	}
 	// once 模式下，读取完后检查通知
-	CheckAndNotify(getThreshold(), info, true)
+	CheckAndNotify(info, true)
 
 	// 如果配置了 clean_after_read，则清空文件
 	if lf.CleanAfterRead {
@@ -104,7 +104,7 @@ func processTailMode(lf TargetLog) {
 			logrus.Debugf("Read line from %s, level: %d, line: %s", lf.Name, info.Level, line.Text)
 			processLine(line.Text, info)
 			// tail 模式下，每行后检查通知
-			CheckAndNotify(getThreshold(), info, false)
+			CheckAndNotify(info, false)
 		}
 
 		// 如果 tail 退出（例如文件被删除），重新开始循环
@@ -124,12 +124,4 @@ func processLine(line string, finfo ListInfo) {
 		logrus.Warnf("Found sensitive IP %s from %s in line: %s", Uint32ToIPv4(ip).String(), linfo.Name, line)
 		AddNotificationItem(ip, finfo, linfo)
 	}
-}
-
-// getThreshold 获取阈值（暂时取第一个通知的阈值）
-func getThreshold() int {
-	if len(config.Notifications.Services) > 0 {
-		return config.Notifications.Services[0].Threshold
-	}
-	return 5 // 默认
 }
