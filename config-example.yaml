@@ -71,6 +71,7 @@ safe_list:
 risk_list:
   # 示例1: 使用知名威胁情报源 - stamparm/ipsum level 8 (最高风险)
   - name: "stamparm_ipsum_level8"
+    level: 8 # 可选，IP 列表等级，数值越大风险越高（默认 1）
     url: "https://github.com/stamparm/ipsum/raw/refs/heads/master/levels/8.txt"
     update_interval: "6h" # 更新间隔，支持 d/h/m/s (默认: 2h)
     format: "text" # 文件格式: text, csv, json (默认: text)
@@ -79,6 +80,7 @@ risk_list:
 
   # 示例2: stamparm/ipsum level 7
   - name: "stamparm_ipsum_level7"
+    level: 7
     url: "https://github.com/stamparm/ipsum/raw/refs/heads/master/levels/7.txt"
     update_interval: "6h"
     format: "text"
@@ -104,6 +106,7 @@ target_logs:
   # 示例1: tail 模式 - 持续监控日志文件新增内容
   - name: "nginx_access" # 文件名称 (用于日志标识和通知)
     path: "/var/log/nginx/access.log" # 日志文件路径 (必填)
+    level: 1 # 可选，日志文件等级（数值越大越重要，默认 1）
     read_mode:
       "tail" # 读取模式: tail (持续监控), once (一次性)
       # 默认值: once
@@ -152,6 +155,10 @@ notifications:
       # 触发通知的阈值 (同一 IP 命中次数)
       # 默认值: 5
       threshold: 5
+      # 通知项关注的日志等级阈值，只有日志文件等级 >= 此值时才会触发
+      log_level: 1
+      # 通知项关注的 IP 风险等级阈值，只有 IP 风险等级 >= 此值时才会触发
+      risk_level: 1
       payload_title: "Risk IP Alert" # 消息标题 (可选)
       # 消息模板 (使用 Go 模板语法)
       # 可用变量:

@@ -11,6 +11,10 @@ import (
 func initAppConfig(config *Config) error {
 	// 设置 safe_list 默认值并解析时间字符串
 	for i := range config.SafeList {
+		// 白名单的 Level 始终为 0（风险等级为 0）
+		if config.SafeList[i].Level != 0 {
+			config.SafeList[i].Level = 0
+		}
 		if err := initIPListConfig(&config.SafeList[i]); err != nil {
 			return fmt.Errorf("invalid safe_list config for %s: %v", config.SafeList[i].Name, err)
 		}
@@ -20,6 +24,10 @@ func initAppConfig(config *Config) error {
 	for i := range config.RiskList {
 		if err := initIPListConfig(&config.RiskList[i]); err != nil {
 			return fmt.Errorf("invalid risk_list config for %s: %v", config.RiskList[i].Name, err)
+		}
+		// 风险列表的 Level 默认值为 1
+		if config.RiskList[i].Level == 0 {
+			config.RiskList[i].Level = 1
 		}
 	}
 
@@ -35,10 +43,21 @@ func initAppConfig(config *Config) error {
 			return fmt.Errorf("invalid read_interval for %s: %v", config.TargetLogs[i].Name, err)
 		}
 		config.TargetLogs[i].ReadIntervalParsed = dur
+		// TargetLog.Level 默认值为 1
+		if config.TargetLogs[i].Level == 0 {
+			config.TargetLogs[i].Level = 1
+		}
 	}
 	for i := range config.Notifications.Services {
 		if config.Notifications.Services[i].Threshold == 0 {
 			config.Notifications.Services[i].Threshold = 5
+		}
+		// Notification 的 LogLevel 与 RiskLevel 默认值均为 1
+		if config.Notifications.Services[i].LogLevel == 0 {
+			config.Notifications.Services[i].LogLevel = 1
+		}
+		if config.Notifications.Services[i].RiskLevel == 0 {
+			config.Notifications.Services[i].RiskLevel = 1
 		}
 	}
 

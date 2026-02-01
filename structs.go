@@ -63,7 +63,8 @@ type Notification struct {
 	PayloadTemplate string                 `yaml:"payload_template"`        // 消息模板 (使用 Go 模板语法)
 	PayloadTitle    string                 `yaml:"payload_title,omitempty"` // 消息标题 (可选)
 	Config          map[string]interface{} `yaml:"config,omitempty"`        // 服务配置 (如 webhook_url, token 等)
-	Level           int                    `yaml:"level,omitempty"`         // 通知等级 (仅通知高于等于该等级的日志文件, 默认 1)
+	LogLevel        int                    `yaml:"log_level,omitempty"`     // 通知等级 (仅通知高于等于该等级的日志文件, 默认 1)
+	RiskLevel       int                    `yaml:"risk_level,omitempty"`    // 风险等级 (仅通知高于等于该等级的风险 IP, 默认 1)
 }
 
 // NotificationItem 通知项结构体

@@ -96,38 +96,57 @@ func AddNotificationItem(ip uint32, finfo ListInfo, linfo ListInfo) {
 }
 
 // CheckAndNotify 检查是否达到阈值并通知
-func CheckAndNotify(threshold int, info ListInfo, isOnce bool) {
+func CheckAndNotify(_threshold int, info ListInfo, isOnce bool) {
 	for ip, items := range NotificationMap {
-		if len(items) >= threshold {
-			// 获取最新项
-			latest := items[len(items)-1]
-			ipStr := Uint32ToIPv4(ip).String()
-			timeStr := time.Unix(latest.Timestamp, 0).Format("2006-01-02 15:04:05")
-			data := NewTemplateData(ipStr, latest.Count, latest.SourceListInfo, latest.SourceLogInfo, latest.Timestamp, timeStr)
+		if len(items) == 0 {
+			continue
+		}
+		// 获取最新项
+		latest := items[len(items)-1]
+		ipStr := Uint32ToIPv4(ip).String()
+		timeStr := time.Unix(latest.Timestamp, 0).Format("2006-01-02 15:04:05")
+		data := NewTemplateData(ipStr, latest.Count, latest.SourceListInfo, latest.SourceLogInfo, latest.Timestamp, timeStr)
 
-			for _, notif := range config.Notifications.Services {
-				if latest.Count >= notif.Threshold {
-					// 解析模板
-					tmpl, err := template.New("payload").Parse(notif.PayloadTemplate)
-					if err != nil {
-						logrus.Errorf("Failed to parse template: %v", err)
-						continue
-					}
-					var buf bytes.Buffer
-					if err := tmpl.Execute(&buf, data); err != nil {
-						logrus.Errorf("Failed to execute template: %v", err)
-						continue
-					}
-					message := buf.String()
-
-					// 发送通知
-					sendNotification(notif, message)
-				}
+		// 对于每个通知配置，独立判断其触发条件：
+		// - 命中次数 >= notif.Threshold
+		// - 日志文件等级 (latest.SourceLogInfo.Level) >= notif.LogLevel
+		// - IP 风险等级 (latest.SourceListInfo.Level) >= notif.RiskLevel
+		sentAny := false
+		for _, notif := range config.Notifications.Services {
+			if latest.Count < notif.Threshold {
+				continue
 			}
 
-			logrus.Infof("Notification triggered for IP %s from %s, level: %d", ipStr, info.Name, info.Level)
+			// 检查 LogLevel 与 RiskLevel
+			if latest.SourceLogInfo.Level < notif.LogLevel {
+				continue
+			}
+			if latest.SourceListInfo.Level < notif.RiskLevel {
+				continue
+			}
+
+			// 解析模板
+			tmpl, err := template.New("payload").Parse(notif.PayloadTemplate)
+			if err != nil {
+				logrus.Errorf("Failed to parse template: %v", err)
+				continue
+			}
+			var buf bytes.Buffer
+			if err := tmpl.Execute(&buf, data); err != nil {
+				logrus.Errorf("Failed to execute template: %v", err)
+				continue
+			}
+			message := buf.String()
+
+			// 发送通知
+			sendNotification(notif, message)
+			sentAny = true
+		}
+
+		if sentAny {
+			logrus.Infof("Notification triggered for IP %s from %s, list_level: %d, log_level: %d, count: %d", ipStr, info.Name, latest.SourceListInfo.Level, latest.SourceLogInfo.Level, latest.Count)
 			if !isOnce {
-				// tail 模式下，通知后清理
+				// tail 模式下，通知后清理该 IP
 				delete(NotificationMap, ip)
 			}
 		}

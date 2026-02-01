@@ -95,16 +95,18 @@ vim config.yaml
 - Level 8: 最高风险
 - Level 7: 高风险
 - Level 1-6: 按风险递减
+  **注意：** `IPList.Level` 默认值为 **1**，表示列表中 IP 的风险等级（数值越大风险越高）。对于白名单（`safe_list`）里的条目，其风险等级始终被视为 **0**，即白名单内 IP 不会触发告警。
 
 ### 目标日志文件 (target_logs)
 
-| 配置项             | 说明                                     | 默认值  |
-| ------------------ | ---------------------------------------- | ------- |
-| `name`             | 文件名称（用于日志标识）                 | -       |
-| `path`             | 日志文件路径（必填）                     | -       |
-| `read_mode`        | 读取模式: `tail`（实时）, `once`（定时） | `once`  |
-| `read_interval`    | 读取间隔（仅 once 模式）                 | `2h`    |
-| `clean_after_read` | 读取后清空文件（仅 once 模式）           | `false` |
+| 配置项             | 说明                                             | 默认值  |
+| ------------------ | ------------------------------------------------ | ------- |
+| `name`             | 文件名称（用于日志标识）                         | -       |
+| `path`             | 日志文件路径（必填）                             | -       |
+| `read_mode`        | 读取模式: `tail`（实时）, `once`（定时）         | `once`  |
+| `read_interval`    | 读取间隔（仅 once 模式）                         | `2h`    |
+| `clean_after_read` | 读取后清空文件（仅 once 模式）                   | `false` |
+| `level`            | 日志文件等级，标记日志重要程度（数值越大越重要） | `1`     |
 
 ### 通知配置 (notifications)
 
@@ -116,12 +118,14 @@ vim config.yaml
 
 每个通知服务的配置：
 
-| 配置项             | 说明                         | 默认值 |
-| ------------------ | ---------------------------- | ------ |
-| `service`          | 服务类型（见下方支持列表）   | -      |
-| `threshold`        | 触发阈值（同一 IP 命中次数） | `5`    |
-| `payload_template` | 消息模板（Go 模板语法）      | -      |
-| `config`           | 服务特定配置                 | -      |
+| 配置项             | 说明                                                                 | 默认值 |
+| ------------------ | -------------------------------------------------------------------- | ------ |
+| `service`          | 服务类型（见下方支持列表）                                           | -      |
+| `threshold`        | 触发阈值（同一 IP 命中次数）                                         | `5`    |
+| `level`            | 通知关注的日志文件等级阈值，只有日志文件等级 >= 此值时才会触发该通知 | `1`    |
+| `risk_level`       | 通知关注的 IP 风险等级阈值，只有 IP 风险等级 >= 此值时才会触发该通知 | `1`    |
+| `payload_template` | 消息模板（Go 模板语法）                                              | -      |
+| `config`           | 服务特定配置                                                         | -      |
 
 #### 消息模板变量
 
@@ -184,9 +188,31 @@ notifications:
   services:
     - service: "webhook"
       threshold: 5
+      level: 1
+      risk_level: 1
       payload_template: '{"ip": "{{.IP}}", "count": {{.Count}}}'
       config:
         url: "https://your-webhook-url.com"
+
+
+### 通知触发逻辑
+
+- 可以配置多项 `notifications.services`，每项都是独立的通知规则。只要满足任意一项规则，就会向该项指定的服务发送通知。✅
+- 触发条件（全部满足时才通知）：
+  1. 同一 IP 的命中次数 >= `threshold`（每个通知项可独立设置）
+  2. 日志文件等级 (`target_logs[].level`) >= 通知项的 `level`
+  3. IP 风险等级 (`IPList.Level`) >= 通知项的 `risk_level`
+
+示例：
+- 配置了两个通知：
+  - Bark: `level=1`, `risk_level=2`
+  - DingTalk: `level=3`, `risk_level=4`
+- 检测到若干次风险 IP，IP 风险等级为 3，来源日志文件的等级为 2：
+  - 满足 Bark 条件（2 >= 1 且 3 >= 2），发送 Bark 通知
+  - 不满足 DingTalk（2 < 3 或 3 < 4），不发送 DingTalk
+- 检测到高风险 IP，风险等级为 5，来源日志文件等级为 4：
+  - 满足 Bark，发送 Bark
+  - 满足 DingTalk，发送 DingTalk
 
 # 通知: Curl (内置 curl 功能，基于 req/v3) 🔧
 

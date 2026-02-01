@@ -20,10 +20,9 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string) {
 
 	for _, list := range lists {
 		if len(list.IPs) > 0 {
-			// 从手动配置的IP列表加载, 手动的优先级都是10
 			ips, cidrs := parseLines(list.IPs)
 			data.DelList(list.Name)
-			data.AddList(NewNetListInfo(list.Name, 10), ips, cidrs)
+			data.AddList(NewNetListInfo(list.Name, list.Level), ips, cidrs)
 			logrus.Infof("Loaded %d IPs and %d CIDRs from manual list [%s] %s", len(ips), len(cidrs), listType, list.Name)
 		} else if list.File != "" {
 			// 从文件加载
