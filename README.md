@@ -129,13 +129,16 @@ vim config.yaml
 
 #### 消息模板变量
 
-| 变量             | 说明                             |
-| ---------------- | -------------------------------- |
-| `{{.IP}}`        | 风险 IP 地址                     |
-| `{{.Count}}`     | 命中次数                         |
-| `{{.Source}}`    | 来源日志文件名                   |
-| `{{.Timestamp}}` | Unix 时间戳                      |
-| `{{.Time}}`      | 格式化时间 (2006-01-02 15:04:05) |
+| 变量                        | 说明                             |
+| --------------------------- | -------------------------------- |
+| `{{.IP}}`                   | 风险 IP 地址                     |
+| `{{.Count}}`                | 命中次数                         |
+| `{{.SourceListInfo.Name}}`  | 风险 IP 来源列表名称             |
+| `{{.SourceListInfo.Level}}` | 风险 IP 来源列表等级             |
+| `{{.SourceLogInfo.Name}}`   | 检测到该 IP 的日志文件名称       |
+| `{{.SourceLogInfo.Level}}`  | 检测到该 IP 的日志文件等级       |
+| `{{.Timestamp}}`            | Unix 时间戳                      |
+| `{{.Time}}`                 | 格式化时间 (2006-01-02 15:04:05) |
 
 ### 支持的通知服务
 
@@ -190,7 +193,7 @@ notifications:
       threshold: 5
       level: 1
       risk_level: 1
-      payload_template: '{"ip": "{{.IP}}", "count": {{.Count}}}'
+      payload_template: '{"ip": "{{.IP}}", "count": {{.Count}}, "list_name": "{{.SourceListInfo.Name}}", "list_level": {{.SourceListInfo.Level}}, "log_name": "{{.SourceLogInfo.Name}}", "log_level": {{.SourceLogInfo.Level}}}'
       config:
         url: "https://your-webhook-url.com"
 
@@ -226,7 +229,7 @@ notifications:
     - service: "curl"
       threshold: 5
       payload_title: "Risk IP Alert"
-      payload_template: "{{.IP}} - {{.Count}} hits from {{.Source}} at {{.Time}}"
+      payload_template: "{{.IP}} - {{.Count}} hits from {{.SourceLogInfo.Name}} (log_level: {{.SourceLogInfo.Level}}, list: {{.SourceListInfo.Name}}, risk_level: {{.SourceListInfo.Level}}) at {{.Time}}"
       config:
         url: "https://example.com/curl_endpoint"
         method: "GET"
@@ -241,7 +244,7 @@ notifications:
   services:
     - service: "telegram"
       threshold: 3
-      payload_template: "🚨 风险 IP 告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
+      payload_template: "🚨 风险 IP 告警\nIP: {{.IP}}\n次数: {{.Count}}\n风险列表: {{.SourceListInfo.Name}} (Level {{.SourceListInfo.Level}})\n日志来源: {{.SourceLogInfo.Name}} (Level {{.SourceLogInfo.Level}})\n时间: {{.Time}}"
       config:
         token: "your-bot-token"
         chat_id: "your-chat-id"
@@ -254,7 +257,7 @@ notifications:
   services:
     - service: "slack"
       threshold: 5
-      payload_template: ":warning: Risk IP detected: {{.IP}} ({{.Count}} hits) from {{.Source}}"
+      payload_template: ":warning: Risk IP detected: {{.IP}} ({{.Count}} hits) from log {{.SourceLogInfo.Name}}, risk list: {{.SourceListInfo.Name}}"
       config:
         token: "xoxb-your-slack-token"
         channel: "#security-alerts"
@@ -267,7 +270,7 @@ notifications:
   services:
     - service: "dingding"
       threshold: 5
-      payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
+      payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n风险列表: {{.SourceListInfo.Name}} (Level {{.SourceListInfo.Level}})\n日志来源: {{.SourceLogInfo.Name}} (Level {{.SourceLogInfo.Level}})\n时间: {{.Time}}"
       config:
         token: "your-dingtalk-token"
         secret: "your-dingtalk-secret"

@@ -39,6 +39,9 @@ func initAPP() error {
 	// 等待初始加载完成 (简单等待10秒)
 	time.Sleep(10 * time.Second)
 
+	// 启动通知工作器 (独立 goroutine, 每 500ms 检查一次)
+	StartNotificationWorker()
+
 	// 启动目标日志文件处理goroutines
 	StartTargetLogProcessors(&config)
 

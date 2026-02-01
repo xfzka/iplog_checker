@@ -162,12 +162,15 @@ notifications:
       payload_title: "Risk IP Alert" # 消息标题 (可选)
       # 消息模板 (使用 Go 模板语法)
       # 可用变量:
-      #   {{.IP}}        - 风险 IP 地址
-      #   {{.Count}}     - 命中次数
-      #   {{.Source}}    - 来源日志文件名
-      #   {{.Timestamp}} - Unix 时间戳
-      #   {{.Time}}      - 格式化时间 (2006-01-02 15:04:05)
-      payload_template: '{"alert": "Risk IP detected", "ip": "{{.IP}}", "count": {{.Count}}, "source": "{{.Source}}", "timestamp": "{{.Timestamp}}", "time": "{{.Time}}" }'
+      #   {{.IP}}                    - 风险 IP 地址
+      #   {{.Count}}                 - 命中次数
+      #   {{.SourceListInfo.Name}}   - 风险 IP 来源列表名称
+      #   {{.SourceListInfo.Level}}  - 风险 IP 来源列表等级
+      #   {{.SourceLogInfo.Name}}    - 检测到该 IP 的日志文件名称
+      #   {{.SourceLogInfo.Level}}   - 检测到该 IP 的日志文件等级
+      #   {{.Timestamp}}             - Unix 时间戳
+      #   {{.Time}}                  - 格式化时间 (2006-01-02 15:04:05)
+      payload_template: '{"alert": "Risk IP detected", "ip": "{{.IP}}", "count": {{.Count}}, "list_name": "{{.SourceListInfo.Name}}", "list_level": {{.SourceListInfo.Level}}, "log_name": "{{.SourceLogInfo.Name}}", "log_level": {{.SourceLogInfo.Level}}, "timestamp": "{{.Timestamp}}", "time": "{{.Time}}" }'
       config:
         # Webhook URL (必填)
         url: "https://example.com/alert_endpoint"
@@ -192,7 +195,7 @@ notifications:
     - service: "curl"
       threshold: 5
       payload_title: "Risk IP Alert"
-      payload_template: "{{.IP}} - {{.Count}} hits from {{.Source}} at {{.Time}}"
+      payload_template: "{{.IP}} - {{.Count}} hits from {{.SourceLogInfo.Name}} (log_level: {{.SourceLogInfo.Level}}, list: {{.SourceListInfo.Name}}, risk_level: {{.SourceListInfo.Level}}) at {{.Time}}"
       config:
         url: "https://example.com/curl_endpoint"
         # 可选：GET/POST/PUT/DELETE/PATCH 等，默认 GET
@@ -208,7 +211,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/slack
     # - service: "slack"
     #   threshold: 5
-    #   payload_template: "🚨 Risk IP Alert: {{.IP}} ({{.Count}} hits) from {{.Source}} at {{.Time}}"
+    #   payload_template: "🚨 Risk IP Alert: {{.IP}} ({{.Count}} hits) from log {{.SourceLogInfo.Name}}, risk list: {{.SourceListInfo.Name}} at {{.Time}}"
     #   config:
     #     # Slack Bot Token (必填)
     #     # 格式: xoxb-xxxx-xxxx-xxxx
@@ -225,7 +228,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/discord
     # - service: "discord"
     #   threshold: 5
-    #   payload_template: "🚨 Risk IP Alert: {{.IP}} ({{.Count}} hits) from {{.Source}}"
+    #   payload_template: "🚨 Risk IP Alert: {{.IP}} ({{.Count}} hits) from log {{.SourceLogInfo.Name}}, risk list: {{.SourceListInfo.Name}}"
     #   config:
     #     # Discord Bot Token (必填)
     #     # 获取方式: https://discord.com/developers/applications
@@ -243,7 +246,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/telegram
     # - service: "telegram"
     #   threshold: 5
-    #   payload_template: "🚨 <b>Risk IP Alert</b>\nIP: {{.IP}}\nHits: {{.Count}}\nSource: {{.Source}}\nTime: {{.Time}}"
+    #   payload_template: "🚨 <b>Risk IP Alert</b>\nIP: {{.IP}}\nHits: {{.Count}}\nRisk List: {{.SourceListInfo.Name}} (Level {{.SourceListInfo.Level}})\nLog Source: {{.SourceLogInfo.Name}} (Level {{.SourceLogInfo.Level}})\nTime: {{.Time}}"
     #   config:
     #     # Telegram Bot Token (必填)
     #     # 获取方式: 与 @BotFather 对话创建 Bot
@@ -262,7 +265,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/bark
     # - service: "bark"
     #   threshold: 5
-    #   payload_template: "Risk IP: {{.IP}} ({{.Count}} hits) - {{.Source}}"
+    #   payload_template: "Risk IP: {{.IP}} ({{.Count}} hits) - List: {{.SourceListInfo.Name}}, Log: {{.SourceLogInfo.Name}}"
     #   config:
     #     # Bark Device Key (必填)
     #     # 获取方式: 打开 Bark App 查看
@@ -279,7 +282,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/pushover
     # - service: "pushover"
     #   threshold: 5
-    #   payload_template: "Risk IP {{.IP}} detected {{.Count}} times from {{.Source}}"
+    #   payload_template: "Risk IP {{.IP}} detected {{.Count}} times from log {{.SourceLogInfo.Name}}, risk list: {{.SourceListInfo.Name}}"
     #   config:
     #     # Pushover API Token / App Token (必填)
     #     # 获取方式: https://pushover.net/apps/build
@@ -312,7 +315,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/rocketchat
     # - service: "rocketchat"
     #   threshold: 5
-    #   payload_template: "🚨 Risk IP: {{.IP}} detected {{.Count}} times"
+    #   payload_template: "🚨 Risk IP: {{.IP}} detected {{.Count}} times from log {{.SourceLogInfo.Name}}, risk list: {{.SourceListInfo.Name}}"
     #   config:
     #     # Rocket.Chat 服务器地址 (必填)
     #     # 示例: "chat.example.com" 或 "localhost:3000"
@@ -337,7 +340,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/dingding
     - service: "dingding"
       threshold: 5
-      payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
+      payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n风险列表: {{.SourceListInfo.Name}} (Level {{.SourceListInfo.Level}})\n日志来源: {{.SourceLogInfo.Name}} (Level {{.SourceLogInfo.Level}})\n时间: {{.Time}}"
       config:
         # DingTalk Access Token (必填)
         token: "your-dingtalk-token"
@@ -351,7 +354,7 @@ notifications:
     # 参考: https://github.com/nikoksr/notify/tree/main/service/wechat
     # - service: "wechat"
     #   threshold: 5
-    #   payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n来源: {{.Source}}\n时间: {{.Time}}"
+    #   payload_template: "风险IP告警\nIP: {{.IP}}\n次数: {{.Count}}\n风险列表: {{.SourceListInfo.Name}} (Level {{.SourceListInfo.Level}})\n日志来源: {{.SourceLogInfo.Name}} (Level {{.SourceLogInfo.Level}})\n时间: {{.Time}}"
     #   config:
     #     # 微信公众号 App ID (必填)
     #     # 获取方式: 微信公众平台 -> 开发 -> 基本配置
