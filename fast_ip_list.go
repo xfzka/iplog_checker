@@ -5,16 +5,27 @@ import (
 	"sync"
 )
 
+// NetList 存储单 IP 和 CIDR 的混合列表
+type NetList struct {
+	ips      map[uint32]struct{} // HASH Set 存储精确 IP
+	cidrRoot *CIDRNode
+}
+
 // CIDRNode 字典树节点
 type CIDRNode struct {
 	children [2]*CIDRNode // 0: left, 1: right
 	end      bool
 }
 
-// NetList 存储单 IP 和 CIDR 的混合列表
-type NetList struct {
-	ips      map[uint32]struct{} // HASH Set 存储精确 IP
-	cidrRoot *CIDRNode
+// ListInfo 数据源信息
+type ListInfo struct {
+	Name  string // 数据源名称
+	Level int    // 数据源等级
+}
+
+// ListGroup 管理多个 NetList
+type ListGroup struct {
+	AllList map[ListInfo]*NetList
 }
 
 // NewNetList 创建新的 NetList
@@ -49,6 +60,21 @@ func NewNetList(ips []uint32, cidrs []netip.Prefix) *NetList {
 	return nl
 }
 
+// NewNetListInfo 创建新的 NetListInfo
+func NewNetListInfo(name string, level int) ListInfo {
+	return ListInfo{
+		Name:  name,
+		Level: level,
+	}
+}
+
+// NewListGroup 创建新的 ListGroup
+func NewListGroup() *ListGroup {
+	return &ListGroup{
+		AllList: make(map[ListInfo]*NetList),
+	}
+}
+
 // Contains 检查 IP 是否在列表中
 func (nl *NetList) Contains(ip uint32) bool {
 	// 先检查精确 IP
@@ -73,32 +99,6 @@ func (nl *NetList) Contains(ip uint32) bool {
 		matched = true
 	}
 	return matched
-}
-
-// ListInfo 数据源信息
-type ListInfo struct {
-	Name  string // 数据源名称
-	Level int    // 数据源等级
-}
-
-// NewNetListInfo 创建新的 NetListInfo
-func NewNetListInfo(name string, level int) ListInfo {
-	return ListInfo{
-		Name:  name,
-		Level: level,
-	}
-}
-
-// ListGroup 管理多个 NetList
-type ListGroup struct {
-	AllList map[ListInfo]*NetList
-}
-
-// NewListGroup 创建新的 ListGroup
-func NewListGroup() *ListGroup {
-	return &ListGroup{
-		AllList: make(map[ListInfo]*NetList),
-	}
 }
 
 // AddList 添加新的 NetList 到 ListGroup
