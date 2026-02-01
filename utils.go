@@ -59,3 +59,11 @@ func IPv4ToUint32(ip string) (uint32, error) {
 func Uint32ToIPv4(ip uint32) netip.Addr {
 	return netip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip)})
 }
+
+// BoolToInt 将布尔值转换为整数（true -> 1, false -> 0）
+func BoolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}

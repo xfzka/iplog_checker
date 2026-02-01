@@ -3,6 +3,7 @@ module main
 go 1.25.6
 
 require (
+	github.com/creasty/defaults v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/hpcloud/tail v1.0.0
 	github.com/imroc/req/v3 v3.57.0
