@@ -157,3 +157,29 @@ func (lg *ListGroup) Contains(ip uint32) (bool, ListInfo) {
 	res := <-found
 	return res.bool, res.ListInfo
 }
+
+// IsIPInSafeList 检查 IP 是否在安全列表中
+func IsIPInSafeList(ip uint32) bool {
+	if SafeListData == nil {
+		return false
+	}
+	found, _ := SafeListData.Contains(ip)
+	return found
+}
+
+// IsSensitiveIP 检测IP是否敏感
+func IsSensitiveIP(ip uint32) (bool, ListInfo) {
+	// 判断是否在安全列表中（白名单）
+	if IsIPInSafeList(ip) {
+		return false, ListInfo{}
+	}
+	// 判断是否在风险IP列表中
+	if RiskListData == nil {
+		return false, ListInfo{}
+	}
+	found, info := RiskListData.Contains(ip)
+	if found {
+		return true, info
+	}
+	return false, ListInfo{}
+}

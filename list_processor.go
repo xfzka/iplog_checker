@@ -14,6 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var SafeListData *ListGroup // 全局安全 IP 数据实例 (白名单)
+var RiskListData *ListGroup // 全局风险 IP 数据实例
+
 // LoadIPList 加载IP列表（通用函数，用于 safe_list 和 risk_list）
 func LoadIPList(lists []IPList, data *ListGroup, listType string) {
 	client := req.C()

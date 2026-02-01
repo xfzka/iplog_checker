@@ -2,13 +2,27 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/hpcloud/tail"
 	"github.com/sirupsen/logrus"
 )
+
+// ExtractIPFromLine 从日志行中提取IP地址
+func ExtractIPFromLine(line string) (uint32, error) {
+	// 正则表达式匹配IPv4地址
+	re := regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`)
+	matches := re.FindAllString(line, -1)
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("no IP found in line")
+	}
+	// 取第一个匹配的IP
+	return IPv4ToUint32(matches[0])
+}
 
 // processOnceMode 处理once模式
 func processOnceMode(lf TargetLog) {

@@ -10,6 +10,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Version will be set at build time via -ldflags "-X main.Version=..."
+// If not set during build, it defaults to "dev".
+var Version string = "dev"
+
 func initAPP() error {
 	data, err := os.ReadFile(ConfigFilePath)
 	if err != nil {

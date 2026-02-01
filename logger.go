@@ -8,6 +8,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Logging 日志配置
+type Logging struct {
+	Level string `yaml:"level"` // 日志级别: debug, info, warn, error
+	To    string `yaml:"to"`    // 日志文件路径
+}
+
 // initLogger 初始化日志配置
 func initLogger(logging *Logging) error {
 	// 设置日志级别
