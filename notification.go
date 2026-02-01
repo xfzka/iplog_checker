@@ -49,10 +49,11 @@ func NewTemplateData(ip string, count int, finfo ListInfo, linfo ListInfo, times
 
 // PendingNotification 待发送的通知
 type PendingNotification struct {
-	Notif   Notification // 通知配置
-	Message string       // 通知消息
-	Title   string       // 通知标题
-	Data    TemplateData // 模板数据
+	Notif      Notification // 通知配置
+	Message    string       // 通知消息
+	Title      string       // 通知标题
+	Data       TemplateData // 模板数据
+	RetryCount int          // 已重试次数
 }
 
 // 通知映射：IP -> 通知项列表
@@ -62,3 +63,27 @@ var NotificationMapMutex sync.Mutex
 // 待发送通知队列
 var PendingNotifications []PendingNotification
 var PendingNotificationsMutex sync.Mutex
+
+// TakeAllPendingNotifications 取出所有待发送通知 (线程安全)
+// 取出后队列将被清空
+func TakeAllPendingNotifications() []PendingNotification {
+	PendingNotificationsMutex.Lock()
+	defer PendingNotificationsMutex.Unlock()
+	if len(PendingNotifications) == 0 {
+		return nil
+	}
+	taken := make([]PendingNotification, len(PendingNotifications))
+	copy(taken, PendingNotifications)
+	PendingNotifications = PendingNotifications[:0]
+	return taken
+}
+
+// AddPendingNotificationsToEnd 将通知项添加到队尾 (线程安全)
+func AddPendingNotificationsToEnd(items []PendingNotification) {
+	if len(items) == 0 {
+		return
+	}
+	PendingNotificationsMutex.Lock()
+	defer PendingNotificationsMutex.Unlock()
+	PendingNotifications = append(PendingNotifications, items...)
+}

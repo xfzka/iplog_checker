@@ -128,17 +128,6 @@ func CheckAndNotify(info ListInfo, isOnce bool) {
 	}
 }
 
-// sendNotificationWithLogging 发送通知并记录日志
-func sendNotificationWithLogging(notif Notification, message, title string, data TemplateData) {
-	err := sendNotification(notif, message, title)
-	if err != nil {
-		logrus.Errorf("Failed to send notification [%s] for IP %s: %v", notif.Service, data.IP, err)
-	} else {
-		logrus.Infof("Successfully sent notification [%s] for IP %s (count: %d, list_level: %d, log_level: %d)",
-			notif.Service, data.IP, data.Count, data.SourceListInfo.Level, data.SourceLogInfo.Level)
-	}
-}
-
 // setupNotificationService 根据通知类型设置对应的服务
 func setupNotificationService(notif Notification) (notify.Notifier, error) {
 	switch strings.ToLower(notif.Service) {
