@@ -518,17 +518,19 @@ func sendNotification(notif Notification, message, title string) error {
 	}
 
 	// 其他服务使用 notify 库
-	var err error
-	for i := 0; i <= retryCount; i++ {
-		service, err := setupNotificationService(notif)
-		if err != nil {
-			return err
-		}
+	// 一次性创建 service，避免重试时重复创建
+	service, err := setupNotificationService(notif)
+	if err != nil {
+		return fmt.Errorf("failed to setup notification service: %v", err)
+	}
 
-		ntf := notify.New()
-		ntf.UseServices(service)
+	ntf := notify.New()
+	ntf.UseServices(service)
+
+	// 重试发送逻辑
+	for i := 0; i <= retryCount; i++ {
 		err = ntf.Send(context.Background(), title, message)
-		logrus.Debugf("Use service: %s, send Title: %s, message: %s", service, title, message)
+		logrus.Debugf("Use service: %s, send Title: %s, message: %s", notif.Service, title, message)
 		if err == nil {
 			return nil
 		}

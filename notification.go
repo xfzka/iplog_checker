@@ -26,6 +26,19 @@ func NewNotificationItem(ip uint32, count int, finfo ListInfo, linfo ListInfo) N
 }
 
 // TemplateData 用于通知模板的数据结构
+// 可用的模板变量：
+//   - {{.IP}}                      - 风险 IP 地址（字符串格式）
+//   - {{.Count}}                   - 该 IP 的命中次数
+//   - {{.SourceListInfo.Name}}     - 风险 IP 来源列表名称（如 "stamparm_ipsum_level8"）
+//   - {{.SourceListInfo.Level}}    - 风险 IP 来源列表的风险等级（1-8，数值越大风险越高）
+//   - {{.SourceLogInfo.Name}}      - 检测到该 IP 的日志文件名称
+//   - {{.SourceLogInfo.Level}}     - 检测到该 IP 的日志文件等级（数值越大越重要）
+//   - {{.Timestamp}}               - Unix 时间戳（秒）
+//   - {{.Time}}                    - 格式化的时间字符串 (2006-01-02 15:04:05)
+//
+// 示例：
+//
+//	{"ip": "{{.IP}}", "count": {{.Count}}, "list": "{{.SourceListInfo.Name}}", "level": {{.SourceListInfo.Level}}}
 type TemplateData struct {
 	IP             string
 	Count          int
