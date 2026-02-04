@@ -12,14 +12,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ipv4Regex 用于匹配IPv4地址的正则表达式
+var ipv4Regex = regexp.MustCompile(`\b((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}\b`)
+
 // ExtractIPFromLine 从日志行中提取IP地址
 func ExtractIPFromLine(line string) (uint32, error) {
 	// 正则表达式匹配IPv4地址
-	re := regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`)
-	matches := re.FindAllString(line, -1)
-	if len(matches) == 0 {
-		return 0, fmt.Errorf("no IP found in line")
+	ip := ipv4Regex.FindString(line)
+	if ip == "" {
+		return 0, fmt.Errorf("no valid IPv4 address found")
 	}
+	ip32, _ := IPv4ToUint32(ip)
+	return ip32, nil
 }
 
 // processOnceMode 处理once模式
