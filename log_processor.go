@@ -20,8 +20,6 @@ func ExtractIPFromLine(line string) (uint32, error) {
 	if len(matches) == 0 {
 		return 0, fmt.Errorf("no IP found in line")
 	}
-	// 取第一个匹配的IP
-	return IPv4ToUint32(matches[0])
 }
 
 // processOnceMode 处理once模式
@@ -74,8 +72,10 @@ func processFileOnce(lf TargetLog) {
 
 // processTailMode 处理tail模式
 func processTailMode(lf TargetLog) {
-	var info = NewNetListInfo(lf.Name, lf.Level)
 	for {
+		// 每次循环重新创建info，避免重复计数
+		var info = NewNetListInfo(lf.Name, lf.Level)
+
 		// 等待文件存在
 		for {
 			if _, err := os.Stat(lf.Path); err == nil {
@@ -107,9 +107,10 @@ func processTailMode(lf TargetLog) {
 			CheckAndNotify(info, false)
 		}
 
-		// 如果 tail 退出（例如文件被删除），重新开始循环
+		// 如果 tail 退出（例如文件被删除），清理并重新开始循环
 		t.Cleanup()
-		logrus.Warnf("Tail for %s ended, will retry...", lf.Path)
+		logrus.Warnf("Tail for %s ended, will retry with fresh state...", lf.Path)
+		// info 会在下次循环开始时重新创建，避免累积旧数据
 	}
 }
 
@@ -117,7 +118,8 @@ func processTailMode(lf TargetLog) {
 func processLine(line string, finfo ListInfo) {
 	ip, err := ExtractIPFromLine(line)
 	if err != nil {
-		// 没有IP，跳过
+		// 没有找到有效IP，记录调试信息后跳过
+		logrus.Debugf("No valid IP in line from %s: %v", finfo.Name, err)
 		return
 	}
 	if isSensitive, linfo := IsSensitiveIP(ip); isSensitive {

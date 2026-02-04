@@ -77,58 +77,56 @@ func processIPNotificationGroup(ip string, notifications []PendingNotification, 
 		return
 	}
 
-	// 并行发送所有通知
-	results := make(chan NotificationResult, len(notifications))
+	// 并行发送所有通知，使用结构化的结果类型
+	type sendResult struct {
+		notification PendingNotification
+		success      bool
+		err          error
+	}
+	results := make([]sendResult, len(notifications))
 	var wg sync.WaitGroup
 
-	for _, pn := range notifications {
+	for i, pn := range notifications {
 		wg.Add(1)
-		go func(pn PendingNotification) {
+		go func(idx int, notification PendingNotification) {
 			defer wg.Done()
-			err := sendNotification(pn.Notif, pn.Message, pn.Title)
-			results <- NotificationResult{
-				Notification: pn,
-				Success:      err == nil,
-				Error:        err,
+			err := sendNotification(notification.Notif, notification.Message, notification.Title)
+			results[idx] = sendResult{
+				notification: notification,
+				success:      err == nil,
+				err:          err,
 			}
-		}(pn)
+		}(i, pn)
 	}
 
-	// 等待所有发送完成并关闭 channel
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	// 等待所有发送完成
+	wg.Wait()
 
-	// 收集结果
+	// 分析结果
 	var successCount int
 	var failedNotifications []PendingNotification
 
-	for result := range results {
-		if result.Success {
+	for _, result := range results {
+		if result.success {
 			successCount++
 			logrus.Infof("Successfully sent notification [%s] for IP %s (count: %d, list_level: %d, log_level: %d)",
-				result.Notification.Notif.Service, ip,
-				result.Notification.Data.Count,
-				result.Notification.Data.SourceListInfo.Level,
-				result.Notification.Data.SourceLogInfo.Level)
+				result.notification.Notif.Service, ip,
+				result.notification.Data.Count,
+				result.notification.Data.SourceListInfo.Level,
+				result.notification.Data.SourceLogInfo.Level)
 		} else {
-			// 记录失败
-			pn := result.Notification
+			// 处理失败的通知
+			pn := result.notification
 			pn.RetryCount++
 
-			if successCount > 0 {
-				// 已有成功的，失败的以 warn 级别记录但不重试
-				logrus.Warnf("Failed to send notification [%s] for IP %s (retry %d/%d): %v (skipped due to other success)",
-					pn.Notif.Service, ip, pn.RetryCount, maxRetry, result.Error)
-			} else if pn.RetryCount >= maxRetry {
-				// 重试耗尽，以 error 级别记录
+			if pn.RetryCount >= maxRetry {
+				// 重试耗尽，记录错误
 				logrus.Errorf("Failed to send notification [%s] for IP %s after %d retries: %v",
-					pn.Notif.Service, ip, pn.RetryCount, result.Error)
+					pn.Notif.Service, ip, pn.RetryCount, result.err)
 			} else {
-				// 记录失败，稍后放回队列
+				// 记录警告，准备重试
 				logrus.Warnf("Failed to send notification [%s] for IP %s (retry %d/%d): %v",
-					pn.Notif.Service, ip, pn.RetryCount, maxRetry, result.Error)
+					pn.Notif.Service, ip, pn.RetryCount, maxRetry, result.err)
 				failedNotifications = append(failedNotifications, pn)
 			}
 		}
@@ -136,8 +134,12 @@ func processIPNotificationGroup(ip string, notifications []PendingNotification, 
 
 	// 如果有成功的，不再重试失败的
 	if successCount > 0 {
-		logrus.Infof("Notification for IP %s completed: %d success, %d failed (not retrying due to success)",
-			ip, successCount, len(notifications)-successCount)
+		if len(failedNotifications) > 0 {
+			logrus.Infof("Notification for IP %s completed: %d success, %d failed (not retrying due to success)",
+				ip, successCount, len(notifications)-successCount)
+		} else {
+			logrus.Infof("All %d notifications for IP %s sent successfully", successCount, ip)
+		}
 		return
 	}
 
@@ -146,5 +148,7 @@ func processIPNotificationGroup(ip string, notifications []PendingNotification, 
 		logrus.Warnf("All notifications failed for IP %s, re-queuing %d notifications for retry",
 			ip, len(failedNotifications))
 		AddPendingNotificationsToEnd(failedNotifications)
+	} else {
+		logrus.Errorf("All %d notifications for IP %s failed after max retries", len(notifications), ip)
 	}
 }
