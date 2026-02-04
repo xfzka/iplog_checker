@@ -3,6 +3,9 @@ package main
 import (
 	"net/netip"
 	"sync"
+	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // NetList 存储单 IP 和 CIDR 的混合列表
@@ -118,12 +121,15 @@ func (lg *ListGroup) DelList(name string) {
 }
 
 // Contains 检查 IP 是否在任何 NetList 中, 并发检查以提高效率, 任意一个匹配则返回 true 和对应的 NetListInfo
+// 使用超时机制避免goroutine永久阻塞
 func (lg *ListGroup) Contains(ip uint32) (bool, ListInfo) {
 	var wg sync.WaitGroup
-	found := make(chan struct {
-		bool
-		ListInfo
-	}, 1)
+	type result struct {
+		found bool
+		info  ListInfo
+	}
+	found := make(chan result, 1)
+	done := make(chan struct{})
 
 	// 并发检查每个 NetList 是否包含指定 IP
 	for info, nl := range lg.AllList {
@@ -132,11 +138,9 @@ func (lg *ListGroup) Contains(ip uint32) (bool, ListInfo) {
 			defer wg.Done()
 			if n.Contains(ip) {
 				select {
-				case found <- struct { // 找到任意一个就立即返回
-					bool
-					ListInfo
-				}{true, i}:
-				default:
+				case found <- result{found: true, info: i}:
+				case <-done: // 如果已经找到或超时，立即退出
+					return
 				}
 			}
 		}(info, nl)
@@ -146,14 +150,19 @@ func (lg *ListGroup) Contains(ip uint32) (bool, ListInfo) {
 	go func() {
 		wg.Wait()
 		select {
-		case found <- struct {
-			bool
-			ListInfo
-		}{false, ListInfo{}}:
-		default:
+		case found <- result{found: false, info: ListInfo{}}:
+		case <-done:
 		}
 	}()
 
-	res := <-found
-	return res.bool, res.ListInfo
+	// 等待结果或超时（5秒）
+	select {
+	case res := <-found:
+		close(done) // 通知所有goroutine可以退出
+		return res.found, res.info
+	case <-time.After(5 * time.Second):
+		close(done) // 通知所有goroutine可以退出
+		logrus.Warnf("IP lookup timeout for %s", Uint32ToIPv4(ip).String())
+		return false, ListInfo{}
+	}
 }

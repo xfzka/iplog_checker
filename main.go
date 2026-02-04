@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -36,12 +36,17 @@ func initAPP() error {
 	// 初始化风险IP数据
 	RiskListData = NewListGroup()
 
-	// 启动加载goroutines
-	LoadIPList(config.SafeList, SafeListData, "safe_list")
-	LoadIPList(config.RiskList, RiskListData, "risk_list")
+	// 启动加载goroutines，使用WaitGroup等待初始加载完成
+	var wg sync.WaitGroup
+	configMutex.RLock()
+	LoadIPList(config.SafeList, SafeListData, "safe_list", &wg)
+	LoadIPList(config.RiskList, RiskListData, "risk_list", &wg)
+	configMutex.RUnlock()
 
-	// 等待初始加载完成 (简单等待10秒)
-	time.Sleep(10 * time.Second)
+	// 等待初始加载完成
+	logrus.Info("Waiting for IP lists to load...")
+	wg.Wait()
+	logrus.Info("IP lists loaded successfully")
 
 	// 启动通知工作器 (独立 goroutine, 每 1s 检查一次，不阻塞)
 	StartNotificationWorker()
@@ -54,7 +59,12 @@ func initAPP() error {
 
 // StartTargetLogProcessors 启动目标日志文件处理器
 func StartTargetLogProcessors(config *Config) {
-	for _, logFile := range config.TargetLogs {
+	configMutex.RLock()
+	targetLogs := make([]TargetLog, len(config.TargetLogs))
+	copy(targetLogs, config.TargetLogs)
+	configMutex.RUnlock()
+
+	for _, logFile := range targetLogs {
 		go func(lf TargetLog) {
 			if lf.ReadMode == "once" {
 				processOnceMode(lf)

@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/imroc/req/v3"
@@ -18,7 +19,8 @@ var SafeListData *ListGroup // 全局安全 IP 数据实例 (白名单)
 var RiskListData *ListGroup // 全局风险 IP 数据实例
 
 // LoadIPList 加载IP列表（通用函数，用于 safe_list 和 risk_list）
-func LoadIPList(lists []IPList, data *ListGroup, listType string) {
+// wg: 可选的WaitGroup，用于等待初始加载完成（仅首次加载时使用）
+func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitGroup) {
 	client := req.C()
 
 	for _, list := range lists {
@@ -27,9 +29,20 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string) {
 			data.DelList(list.Name)
 			data.AddList(NewNetListInfo(list.Name, list.Level), ips, cidrs)
 			logrus.Infof("Loaded %d IPs and %d CIDRs from manual list [%s] %s", len(ips), len(cidrs), listType, list.Name)
+			if wg != nil {
+				wg.Done()
+			}
 		} else if list.File != "" {
 			// 从文件加载
+			if wg != nil {
+				wg.Add(1)
+			}
 			go func(list IPList) {
+				defer func() {
+					if wg != nil {
+						wg.Done()
+					}
+				}()
 				for {
 					err := loadFromFile(list, data, listType)
 					if err != nil {
@@ -52,7 +65,15 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string) {
 			}(list)
 		} else if list.URL != "" {
 			// 从 URL 下载
+			if wg != nil {
+				wg.Add(1)
+			}
 			go func(list IPList) {
+				defer func() {
+					if wg != nil {
+						wg.Done()
+					}
+				}()
 				for {
 					err := downloadAndParse(client, list, data, listType)
 					if err != nil {
@@ -110,7 +131,10 @@ func downloadAndParse(client *req.Client, list IPList, data *ListGroup, listType
 	data.DelList(list.Name)
 	data.AddList(NewNetListInfo(list.Name, list.Level), ips, cidrs)
 	logrus.Infof("Downloaded %d IPs and %d CIDRs from [%s] %s, %s", len(ips), len(cidrs), listType, list.Name, list.URL)
-	if config.Logging.Level == "debug" {
+	configMutex.RLock()
+	isDebug := config.Logging.Level == "debug"
+	configMutex.RUnlock()
+	if isDebug {
 		logrus.Debugf("Top 10 IP from %s:", list.Name)
 		for i, ip := range ips {
 			if i >= 10 {

@@ -48,7 +48,9 @@ func processAndSendNotifications() {
 	}
 
 	// 获取最大重试次数
+	configMutex.RLock()
 	maxRetry := config.Notifications.RetryCount
+	configMutex.RUnlock()
 	if maxRetry <= 0 {
 		maxRetry = 5 // 默认 5 次
 	}

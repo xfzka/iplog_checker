@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/creasty/defaults"
@@ -10,6 +11,7 @@ import (
 )
 
 var config Config                         // 全局配置实例
+var configMutex sync.RWMutex              // 保护config的读写锁
 var ConfigFilePath string = "config.yaml" // 默认配置文件路径
 
 // Config 表示根配置结构
@@ -167,7 +169,9 @@ func watchConfigFile() {
 			}
 			if event.Has(fsnotify.Write) {
 				logrus.Info("Config file changed, reloading...")
+				configMutex.Lock()
 				err := initAPP()
+				configMutex.Unlock()
 				if err != nil {
 					logrus.Errorf("Failed to reload config: %v", err)
 				} else {

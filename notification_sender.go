@@ -31,7 +31,9 @@ import (
 func AddNotificationItem(ip uint32, finfo ListInfo, linfo ListInfo) {
 	NotificationMapMutex.Lock()
 	defer NotificationMapMutex.Unlock()
-	NotificationMap[ip] = append(NotificationMap[ip], NewNotificationItem(ip, len(NotificationMap[ip])+1, finfo, linfo))
+	// 计算当前IP的命中次数（当前已有的项数 + 1）
+	currentCount := len(NotificationMap[ip]) + 1
+	NotificationMap[ip] = append(NotificationMap[ip], NewNotificationItem(ip, currentCount, finfo, linfo))
 }
 
 // AddPendingNotification 添加待发送通知到队列 (线程安全)
@@ -68,7 +70,12 @@ func CheckAndNotify(info ListInfo, isOnce bool) {
 		// - 日志文件等级 (latest.SourceLogInfo.Level) >= notif.LogLevel
 		// - IP 风险等级 (latest.SourceListInfo.Level) >= notif.RiskLevel
 		sentAny := false
-		for _, notif := range config.Notifications.Services {
+		configMutex.RLock()
+		notificationServices := make([]Notification, len(config.Notifications.Services))
+		copy(notificationServices, config.Notifications.Services)
+		configMutex.RUnlock()
+
+		for _, notif := range notificationServices {
 			if latest.Count < notif.Threshold {
 				continue
 			}
@@ -485,7 +492,9 @@ func sendCurlNotification(notif Notification, message, title string, retryCount 
 
 // sendNotification 发送通知, 返回错误信息
 func sendNotification(notif Notification, message, title string) error {
+	configMutex.RLock()
 	retryCount := config.Notifications.RetryCount
+	configMutex.RUnlock()
 	if retryCount == 0 {
 		retryCount = 5 // 默认 5
 	}
