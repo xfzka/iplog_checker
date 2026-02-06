@@ -29,27 +29,25 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitG
 			data.DelList(list.Name)
 			data.AddList(NewNetListInfo(list.Name, list.Level), ips, cidrs)
 			logrus.Infof("Loaded %d IPs and %d CIDRs from manual list [%s] %s", len(ips), len(cidrs), listType, list.Name)
-			if wg != nil {
-				wg.Done()
-			}
+			// 手动 IP 列表是同步加载的，不需要 WaitGroup
 		} else if list.File != "" {
 			// 从文件加载
 			if wg != nil {
 				wg.Add(1)
 			}
 			go func(list IPList) {
-				defer func() {
-					if wg != nil {
-						wg.Done()
-					}
-				}()
-				for {
-					err := loadFromFile(list, data, listType)
-					if err != nil {
-						logrus.Errorf("Failed to load from file %s: %v", list.File, err)
-					}
-					if list.UpdateIntervalParsed > 0 {
-						// Debug: 输出下一次更新等待时间
+				// 首次加载
+				err := loadFromFile(list, data, listType)
+				if err != nil {
+					logrus.Errorf("Failed to load from file %s: %v", list.File, err)
+				}
+				// 首次加载完成，通知 WaitGroup
+				if wg != nil {
+					wg.Done()
+				}
+				// 如果需要周期性更新，继续循环
+				if list.UpdateIntervalParsed > 0 {
+					for {
 						var source string
 						if list.Name != "" {
 							source = list.Name
@@ -58,8 +56,10 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitG
 						}
 						logrus.Debugf("Next update for %s (%s) after %s", source, listType, list.UpdateIntervalParsed.String())
 						time.Sleep(list.UpdateIntervalParsed)
-					} else {
-						return // 没有设置更新间隔，只加载一次
+						err := loadFromFile(list, data, listType)
+						if err != nil {
+							logrus.Errorf("Failed to load from file %s: %v", list.File, err)
+						}
 					}
 				}
 			}(list)
@@ -69,22 +69,24 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitG
 				wg.Add(1)
 			}
 			go func(list IPList) {
-				defer func() {
-					if wg != nil {
-						wg.Done()
-					}
-				}()
-				for {
-					err := downloadAndParse(client, list, data, listType)
-					if err != nil {
-						logrus.Errorf("Failed to download %s: %v", list.URL, err)
-					}
-					if list.UpdateIntervalParsed > 0 {
-						// Debug: 输出下一次更新等待时间 (简化 source 构建)
+				// 首次加载
+				err := downloadAndParse(client, list, data, listType)
+				if err != nil {
+					logrus.Errorf("Failed to download %s: %v", list.URL, err)
+				}
+				// 首次加载完成，通知 WaitGroup
+				if wg != nil {
+					wg.Done()
+				}
+				// 如果需要周期性更新，继续循环
+				if list.UpdateIntervalParsed > 0 {
+					for {
 						logrus.Debugf("Next update for %s (%s) after %s", list.Name+": "+list.URL, listType, list.UpdateIntervalParsed.String())
 						time.Sleep(list.UpdateIntervalParsed)
-					} else {
-						return // 没有设置更新间隔，只加载一次
+						err := downloadAndParse(client, list, data, listType)
+						if err != nil {
+							logrus.Errorf("Failed to download %s: %v", list.URL, err)
+						}
 					}
 				}
 			}(list)

@@ -101,6 +101,16 @@ func main() {
 	// 启动配置文件监控
 	go watchConfigFile()
 
+	// 启动 API 服务器
+	go func() {
+		logrus.Info("Starting API server on 127.0.0.1:19000")
+		err := StartAPIServer("127.0.0.1:19000")
+		if err != nil {
+			logrus.Errorf("API server error: %v", err)
+		}
+		logrus.Info("API server stopped")
+	}()
+
 	// 主程序逻辑在此处继续...
 	select {}
 }

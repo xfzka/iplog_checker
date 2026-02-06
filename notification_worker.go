@@ -109,6 +109,8 @@ func processIPNotificationGroup(ip string, notifications []PendingNotification, 
 	for _, result := range results {
 		if result.success {
 			successCount++
+			// 增加全局通知发送计数
+			IncrementNotificationsSent()
 			logrus.Infof("Successfully sent notification [%s] for IP %s (count: %d, list_level: %d, log_level: %d)",
 				result.notification.Notif.Service, ip,
 				result.notification.Data.Count,
