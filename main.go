@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -139,6 +141,15 @@ func main() {
 		logrus.Info("API server is disabled")
 	}
 
-	// 主程序逻辑在此处继续...
-	select {}
+	// 等待系统信号，优雅退出
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigCh
+	logrus.Infof("Received signal %v, shutting down...", sig)
+
+	// 取消所有后台 goroutine
+	if appCancel != nil {
+		appCancel()
+	}
+	logrus.Info("Shutdown complete")
 }
