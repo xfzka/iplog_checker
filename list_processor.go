@@ -203,6 +203,10 @@ func parseText(body string) ([]uint32, []netip.Prefix, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		// 支持 tab 分隔格式 (如 stamparm/ipsum: "IP\tLevel")，只取第一列
+		if idx := strings.IndexByte(line, '\t'); idx != -1 {
+			line = strings.TrimSpace(line[:idx])
+		}
 		lines = append(lines, line)
 	}
 
