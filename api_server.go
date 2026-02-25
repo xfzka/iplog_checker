@@ -184,4 +184,3 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
-

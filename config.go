@@ -27,7 +27,7 @@ type Config struct {
 
 // APIServer API 服务器配置
 type APIServer struct {
-	Enabled bool   `yaml:"enabled" default:"true"`           // 是否启用 API 服务器 (默认 true)
+	Enabled bool   `yaml:"enabled" default:"true"`         // 是否启用 API 服务器 (默认 true)
 	Addr    string `yaml:"addr" default:"127.0.0.1:19000"` // 监听地址 (默认 127.0.0.1:19000)
 }
 
