@@ -433,8 +433,8 @@ func setupWebpushService(notif Notification) (notify.Notifier, error) {
 	return webpushSvc, nil
 }
 
-// sendCurlNotification 发送 curl 通知 (特殊处理，不使用 notify 库)
-func sendCurlNotification(notif Notification, message, title string, retryCount int, timeout time.Duration) error {
+// sendCurlNotification 发送 curl 通知 (特殊处理，不使用 notify 库，单次尝试)
+func sendCurlNotification(notif Notification, message, title string, timeout time.Duration) error {
 	urlStr, ok := notif.Config["url"].(string)
 	if !ok {
 		return fmt.Errorf("Curl url not configured or not string")
@@ -514,36 +514,18 @@ func sendCurlNotification(notif Notification, message, title string, retryCount 
 	return err
 }
 
-// sendNotification 发送通知, 返回错误信息
+// sendNotification 发送通知, 返回错误信息 (单次尝试，不内部重试，由 notification_worker 统一管理重试)
 func sendNotification(notif Notification, message, title string) error {
 	configMutex.RLock()
-	retryCount := config.Notifications.RetryCount
 	timeout := config.Notifications.TimeoutParsed
 	configMutex.RUnlock()
-	if retryCount == 0 {
-		retryCount = 5 // 默认 5
-	}
 
 	// 特殊处理 curl 服务
 	if strings.ToLower(notif.Service) == "curl" {
-		var err error
-		for i := 0; i <= retryCount; i++ {
-			err = sendCurlNotification(notif, message, title, retryCount, timeout)
-			if err == nil {
-				return nil
-			}
-			if i < retryCount {
-				logrus.Warnf("Curl notification failed, retrying (%d/%d): %v", i+1, retryCount, err)
-				wait := time.Second * time.Duration(i+1)
-				logrus.Debugf("Next curl notification retry after %s", wait.String())
-				time.Sleep(wait)
-			}
-		}
-		return fmt.Errorf("failed to send curl notification after %d retries: %v", retryCount, err)
+		return sendCurlNotification(notif, message, title, timeout)
 	}
 
 	// 其他服务使用 notify 库
-	// 一次性创建 service，避免重试时重复创建
 	service, err := setupNotificationService(notif)
 	if err != nil {
 		return fmt.Errorf("failed to setup notification service: %v", err)
@@ -552,25 +534,13 @@ func sendNotification(notif Notification, message, title string) error {
 	ntf := notify.New()
 	ntf.UseServices(service)
 
-	// 重试发送逻辑
-	for i := 0; i <= retryCount; i++ {
-		if timeout > 0 {
-			sendCtx, cancel := context.WithTimeout(context.Background(), timeout)
-			err = ntf.Send(sendCtx, title, message)
-			cancel()
-		} else {
-			err = ntf.Send(context.Background(), title, message)
-		}
-		logrus.Debugf("Use service: %s, send Title: %s, message: %s", notif.Service, title, message)
-		if err == nil {
-			return nil
-		}
-		if i < retryCount {
-			logrus.Warnf("Notification failed, retrying (%d/%d): %v", i+1, retryCount, err)
-			wait := time.Second * time.Duration(i+1)
-			logrus.Debugf("Next notification retry after %s", wait.String())
-			time.Sleep(wait) // 简单退避
-		}
+	if timeout > 0 {
+		sendCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		err = ntf.Send(sendCtx, title, message)
+		cancel()
+	} else {
+		err = ntf.Send(context.Background(), title, message)
 	}
-	return fmt.Errorf("failed to send notification after %d retries: %v", retryCount, err)
+	logrus.Debugf("Use service: %s, send Title: %s, message: %s", notif.Service, title, message)
+	return err
 }
