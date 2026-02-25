@@ -14,6 +14,9 @@ type Logging struct {
 	To    string `yaml:"to"`    // 日志文件路径
 }
 
+// currentLogFile 保存当前打开的日志文件句柄，用于热重载时关闭旧句柄
+var currentLogFile *os.File
+
 // initLogger 初始化日志配置
 func initLogger(logging *Logging) error {
 	// 设置日志级别
@@ -22,6 +25,12 @@ func initLogger(logging *Logging) error {
 		return fmt.Errorf("invalid log level: %v", err)
 	}
 	logrus.SetLevel(level)
+
+	// 关闭旧的日志文件句柄（如果存在）
+	if currentLogFile != nil {
+		currentLogFile.Close()
+		currentLogFile = nil
+	}
 
 	// 设置输出
 	if logging.To == "" {
@@ -34,6 +43,7 @@ func initLogger(logging *Logging) error {
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %v", err)
 	}
+	currentLogFile = file
 	logrus.SetOutput(io.MultiWriter(os.Stdout, file))
 
 	return nil
