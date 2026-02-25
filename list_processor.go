@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -20,7 +21,7 @@ var RiskListData *ListGroup // 全局风险 IP 数据实例
 
 // LoadIPList 加载IP列表（通用函数，用于 safe_list 和 risk_list）
 // wg: 可选的WaitGroup，用于等待初始加载完成（仅首次加载时使用）
-func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitGroup) {
+func LoadIPList(ctx context.Context, lists []IPList, data *ListGroup, listType string, wg *sync.WaitGroup) {
 	client := req.C()
 
 	for _, list := range lists {
@@ -55,7 +56,12 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitG
 							source = list.File
 						}
 						logrus.Debugf("Next update for %s (%s) after %s", source, listType, list.UpdateIntervalParsed.String())
-						time.Sleep(list.UpdateIntervalParsed)
+						select {
+						case <-ctx.Done():
+							logrus.Infof("Stopping periodic file update for %s (%s)", source, listType)
+							return
+						case <-time.After(list.UpdateIntervalParsed):
+						}
 						err := loadFromFile(list, data, listType)
 						if err != nil {
 							logrus.Errorf("Failed to load from file %s: %v", list.File, err)
@@ -82,7 +88,12 @@ func LoadIPList(lists []IPList, data *ListGroup, listType string, wg *sync.WaitG
 				if list.UpdateIntervalParsed > 0 {
 					for {
 						logrus.Debugf("Next update for %s (%s) after %s", list.Name+": "+list.URL, listType, list.UpdateIntervalParsed.String())
-						time.Sleep(list.UpdateIntervalParsed)
+						select {
+						case <-ctx.Done():
+							logrus.Infof("Stopping periodic URL update for %s (%s)", list.Name, listType)
+							return
+						case <-time.After(list.UpdateIntervalParsed):
+						}
 						err := downloadAndParse(client, list, data, listType)
 						if err != nil {
 							logrus.Errorf("Failed to download %s: %v", list.URL, err)
@@ -237,7 +248,7 @@ func parseCSV(body, column string) ([]uint32, []netip.Prefix, error) {
 	return ips, cidrs, nil
 }
 
-// parseJSON 解析JSON格式
+// parseJSON 解析JSON格式，支持点号分隔的路径 (如 "data.ips", "servers.list")
 func parseJSON(body, path string) ([]uint32, []netip.Prefix, error) {
 	var data interface{}
 	err := json.Unmarshal([]byte(body), &data)
@@ -245,22 +256,38 @@ func parseJSON(body, path string) ([]uint32, []netip.Prefix, error) {
 		return nil, nil, err
 	}
 
-	// 简单实现：假设path是顶级key
-	if m, ok := data.(map[string]interface{}); ok {
-		if val, exists := m[path]; exists {
-			if arr, ok := val.([]interface{}); ok {
-				var lines []string
-				for _, item := range arr {
-					if str, ok := item.(string); ok {
-						lines = append(lines, str)
-					}
-				}
-				ips, cidrs := parseLines(lines)
-				return ips, cidrs, nil
-			}
+	// 支持点号分隔的路径遍历
+	current := data
+	parts := strings.Split(path, ".")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		m, ok := current.(map[string]interface{})
+		if !ok {
+			return nil, nil, fmt.Errorf("path %s: expected object at '%s', got %T", path, part, current)
+		}
+		val, exists := m[part]
+		if !exists {
+			return nil, nil, fmt.Errorf("path %s: key '%s' not found", path, part)
+		}
+		current = val
+	}
+
+	arr, ok := current.([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("path %s: expected array, got %T", path, current)
+	}
+
+	var lines []string
+	for _, item := range arr {
+		if str, ok := item.(string); ok {
+			lines = append(lines, str)
 		}
 	}
-	return nil, nil, fmt.Errorf("path %s not found or not an array", path)
+	ips, cidrs := parseLines(lines)
+	return ips, cidrs, nil
 }
 
 // parseLines 解析多行文本，返回IP和CIDR列表

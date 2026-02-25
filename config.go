@@ -26,8 +26,10 @@ type Config struct {
 
 // Notifications 通知配置包装
 type Notifications struct {
-	RetryCount int            `yaml:"retry_count,omitempty" default:"5"` // 共享重试次数 (默认 5)
-	Services   []Notification `yaml:"services"`                          // 通知服务列表
+	Timeout       string         `yaml:"timeout,omitempty" default:"10s"`   // 请求超时 (默认 10s)
+	RetryCount    int            `yaml:"retry_count,omitempty" default:"5"` // 共享重试次数 (默认 5)
+	Services      []Notification `yaml:"services"`                          // 通知服务列表
+	TimeoutParsed time.Duration  // 解析后的超时
 }
 
 // IPList IP 列表配置 (用于 safe_list 和 risk_list)
@@ -102,6 +104,15 @@ func initAppConfig(config *Config) error {
 		config.TargetLogs[i].ReadIntervalParsed = dur
 	}
 
+	// 解析通知超时
+	if config.Notifications.Timeout != "" {
+		dur, err := ParseDuration(config.Notifications.Timeout)
+		if err != nil {
+			return fmt.Errorf("invalid notifications timeout: %v", err)
+		}
+		config.Notifications.TimeoutParsed = dur
+	}
+
 	// 初始化日志
 	err := initLogger(&config.Logging)
 	if err != nil {
@@ -169,9 +180,7 @@ func watchConfigFile() {
 			}
 			if event.Has(fsnotify.Write) {
 				logrus.Info("Config file changed, reloading...")
-				configMutex.Lock()
 				err := initAPP()
-				configMutex.Unlock()
 				if err != nil {
 					logrus.Errorf("Failed to reload config: %v", err)
 				} else {

@@ -15,12 +15,13 @@ type NotificationItem struct {
 }
 
 // NewNotificationItem 创建新的通知项
+// finfo: 日志文件信息 (SourceLogInfo), linfo: 风险列表信息 (SourceListInfo)
 func NewNotificationItem(ip uint32, count int, finfo ListInfo, linfo ListInfo) NotificationItem {
 	return NotificationItem{
 		IP:             ip,
 		Count:          count,
-		SourceListInfo: finfo,
-		SourceLogInfo:  linfo,
+		SourceLogInfo:  finfo,
+		SourceListInfo: linfo,
 		Timestamp:      time.Now().Unix(),
 	}
 }

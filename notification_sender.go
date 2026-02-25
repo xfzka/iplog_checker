@@ -15,6 +15,7 @@ import (
 	"github.com/imroc/req/v3"
 	"github.com/nikoksr/notify"
 	"github.com/nikoksr/notify/service/bark"
+	"github.com/nikoksr/notify/service/dingding"
 	"github.com/nikoksr/notify/service/discord"
 	"github.com/nikoksr/notify/service/http"
 	"github.com/nikoksr/notify/service/pushbullet"
@@ -156,6 +157,8 @@ func setupNotificationService(notif Notification) (notify.Notifier, error) {
 		return setupRocketchatService(notif)
 	case "wechat":
 		return setupWechatService(notif)
+	case "dingding":
+		return setupDingdingService(notif)
 	case "webpush":
 		return setupWebpushService(notif)
 	default:
@@ -397,6 +400,24 @@ func setupWechatService(notif Notification) (notify.Notifier, error) {
 	return wechatSvc, nil
 }
 
+// setupDingdingService 设置钉钉服务
+func setupDingdingService(notif Notification) (notify.Notifier, error) {
+	token, ok := notif.Config["token"].(string)
+	if !ok {
+		return nil, fmt.Errorf("DingDing token not configured or not string")
+	}
+	secret, ok := notif.Config["secret"].(string)
+	if !ok {
+		return nil, fmt.Errorf("DingDing secret not configured or not string")
+	}
+	logrus.Debugf("Setup DingDing with token=%s secret=%s", token, secret)
+	dingSvc := dingding.New(&dingding.Config{
+		Token:  token,
+		Secret: secret,
+	})
+	return dingSvc, nil
+}
+
 // setupWebpushService 设置 WebPush 服务
 func setupWebpushService(notif Notification) (notify.Notifier, error) {
 	vapidPublicKey, ok := notif.Config["vapid_public_key"].(string)
@@ -413,7 +434,7 @@ func setupWebpushService(notif Notification) (notify.Notifier, error) {
 }
 
 // sendCurlNotification 发送 curl 通知 (特殊处理，不使用 notify 库)
-func sendCurlNotification(notif Notification, message, title string, retryCount int) error {
+func sendCurlNotification(notif Notification, message, title string, retryCount int, timeout time.Duration) error {
 	urlStr, ok := notif.Config["url"].(string)
 	if !ok {
 		return fmt.Errorf("Curl url not configured or not string")
@@ -432,6 +453,9 @@ func sendCurlNotification(notif Notification, message, title string, retryCount 
 	}
 
 	c := req.C()
+	if timeout > 0 {
+		c = c.SetTimeout(timeout)
+	}
 	if logrus.IsLevelEnabled(logrus.DebugLevel) {
 		c.EnableDebugLog()
 	}
@@ -494,6 +518,7 @@ func sendCurlNotification(notif Notification, message, title string, retryCount 
 func sendNotification(notif Notification, message, title string) error {
 	configMutex.RLock()
 	retryCount := config.Notifications.RetryCount
+	timeout := config.Notifications.TimeoutParsed
 	configMutex.RUnlock()
 	if retryCount == 0 {
 		retryCount = 5 // 默认 5
@@ -503,7 +528,7 @@ func sendNotification(notif Notification, message, title string) error {
 	if strings.ToLower(notif.Service) == "curl" {
 		var err error
 		for i := 0; i <= retryCount; i++ {
-			err = sendCurlNotification(notif, message, title, retryCount)
+			err = sendCurlNotification(notif, message, title, retryCount, timeout)
 			if err == nil {
 				return nil
 			}
@@ -529,7 +554,13 @@ func sendNotification(notif Notification, message, title string) error {
 
 	// 重试发送逻辑
 	for i := 0; i <= retryCount; i++ {
-		err = ntf.Send(context.Background(), title, message)
+		if timeout > 0 {
+			sendCtx, cancel := context.WithTimeout(context.Background(), timeout)
+			err = ntf.Send(sendCtx, title, message)
+			cancel()
+		} else {
+			err = ntf.Send(context.Background(), title, message)
+		}
 		logrus.Debugf("Use service: %s, send Title: %s, message: %s", notif.Service, title, message)
 		if err == nil {
 			return nil

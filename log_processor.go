@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -27,13 +28,18 @@ func ExtractIPFromLine(line string) (uint32, error) {
 }
 
 // processOnceMode 处理once模式
-func processOnceMode(lf TargetLog) {
+func processOnceMode(ctx context.Context, lf TargetLog) {
 	interval := lf.ReadIntervalParsed
 	for {
 		processFileOnce(lf)
 		// Debug: 输出下一次读取间隔
 		logrus.Debugf("Next read for %s after %s", lf.Name, interval.String())
-		time.Sleep(interval)
+		select {
+		case <-ctx.Done():
+			logrus.Infof("Stopping once-mode processor for %s", lf.Name)
+			return
+		case <-time.After(interval):
+		}
 	}
 }
 
@@ -75,7 +81,7 @@ func processFileOnce(lf TargetLog) {
 }
 
 // processTailMode 处理tail模式
-func processTailMode(lf TargetLog) {
+func processTailMode(ctx context.Context, lf TargetLog) {
 	for {
 		// 每次循环重新创建info，避免重复计数
 		var info = NewNetListInfo(lf.Name, lf.Level)
@@ -86,7 +92,12 @@ func processTailMode(lf TargetLog) {
 				break
 			}
 			logrus.Warnf("File %s does not exist, retrying in 1 second...", lf.Path)
-			time.Sleep(1 * time.Second)
+			select {
+			case <-ctx.Done():
+				logrus.Infof("Stopping tail-mode processor for %s", lf.Name)
+				return
+			case <-time.After(1 * time.Second):
+			}
 		}
 
 		t, err := tail.TailFile(lf.Path, tail.Config{
@@ -96,9 +107,20 @@ func processTailMode(lf TargetLog) {
 		})
 		if err != nil {
 			logrus.Errorf("Failed to tail file %s: %v, retrying in 1 second...", lf.Path, err)
-			time.Sleep(1 * time.Second)
+			select {
+			case <-ctx.Done():
+				logrus.Infof("Stopping tail-mode processor for %s", lf.Name)
+				return
+			case <-time.After(1 * time.Second):
+			}
 			continue
 		}
+
+		// 当 context 取消时，停止 tailer
+		go func() {
+			<-ctx.Done()
+			t.Stop()
+		}()
 
 		for line := range t.Lines {
 			if line.Err != nil {
@@ -113,6 +135,15 @@ func processTailMode(lf TargetLog) {
 
 		// 如果 tail 退出（例如文件被删除），清理并重新开始循环
 		t.Cleanup()
+
+		// 检查是否是 context 取消导致的退出
+		select {
+		case <-ctx.Done():
+			logrus.Infof("Stopping tail-mode processor for %s", lf.Name)
+			return
+		default:
+		}
+
 		logrus.Warnf("Tail for %s ended, will retry with fresh state...", lf.Path)
 		// info 会在下次循环开始时重新创建，避免累积旧数据
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -14,22 +15,40 @@ import (
 // If not set during build, it defaults to "dev".
 var Version string = "dev"
 
+// appCtx 和 appCancel 控制所有后台 goroutine 的生命周期
+var appCtx context.Context
+var appCancel context.CancelFunc
+
 func initAPP() error {
+	// 如果已有运行中的 goroutine，先取消旧 context
+	if appCancel != nil {
+		appCancel()
+	}
+
 	data, err := os.ReadFile(ConfigFilePath)
 	if err != nil {
 		return fmt.Errorf("Error reading config file: %v\n", err)
 	}
 
-	err = yaml.Unmarshal(data, &config)
+	var newConfig Config
+	err = yaml.Unmarshal(data, &newConfig)
 	if err != nil {
 		return fmt.Errorf("Error parsing YAML: %v\n", err)
 	}
 
 	// 初始化应用配置
-	err = initAppConfig(&config)
+	err = initAppConfig(&newConfig)
 	if err != nil {
 		return fmt.Errorf("Error initializing app config: %v\n", err)
 	}
+
+	// 原子更新全局配置
+	configMutex.Lock()
+	config = newConfig
+	configMutex.Unlock()
+
+	// 创建新的 context 控制所有后台 goroutine
+	appCtx, appCancel = context.WithCancel(context.Background())
 
 	// 初始化安全IP数据 (白名单)
 	SafeListData = NewListGroup()
@@ -39,8 +58,8 @@ func initAPP() error {
 	// 启动加载goroutines，使用WaitGroup等待初始加载完成
 	var wg sync.WaitGroup
 	configMutex.RLock()
-	LoadIPList(config.SafeList, SafeListData, "safe_list", &wg)
-	LoadIPList(config.RiskList, RiskListData, "risk_list", &wg)
+	LoadIPList(appCtx, config.SafeList, SafeListData, "safe_list", &wg)
+	LoadIPList(appCtx, config.RiskList, RiskListData, "risk_list", &wg)
 	configMutex.RUnlock()
 
 	// 等待初始加载完成
@@ -49,16 +68,16 @@ func initAPP() error {
 	logrus.Info("IP lists loaded successfully")
 
 	// 启动通知工作器 (独立 goroutine, 每 1s 检查一次，不阻塞)
-	StartNotificationWorker()
+	StartNotificationWorker(appCtx)
 
 	// 启动目标日志文件处理goroutines
-	StartTargetLogProcessors(&config)
+	StartTargetLogProcessors(appCtx, &config)
 
 	return nil
 }
 
 // StartTargetLogProcessors 启动目标日志文件处理器
-func StartTargetLogProcessors(config *Config) {
+func StartTargetLogProcessors(ctx context.Context, config *Config) {
 	configMutex.RLock()
 	targetLogs := make([]TargetLog, len(config.TargetLogs))
 	copy(targetLogs, config.TargetLogs)
@@ -67,9 +86,9 @@ func StartTargetLogProcessors(config *Config) {
 	for _, logFile := range targetLogs {
 		go func(lf TargetLog) {
 			if lf.ReadMode == "once" {
-				processOnceMode(lf)
+				processOnceMode(ctx, lf)
 			} else if lf.ReadMode == "tail" {
-				processTailMode(lf)
+				processTailMode(ctx, lf)
 			} else {
 				logrus.Errorf("Unknown read_mode for %s: %s", lf.Name, lf.ReadMode)
 			}

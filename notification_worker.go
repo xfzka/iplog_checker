@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -16,14 +17,20 @@ type NotificationResult struct {
 
 // StartNotificationWorker 启动独立的通知发送工作器
 // 每 1 秒检查一次是否有待发送的通知，不等待上一次发送完毕
-func StartNotificationWorker() {
+func StartNotificationWorker(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			// 不阻塞，每次检测都在新的 goroutine 中处理
-			go processAndSendNotifications()
+		for {
+			select {
+			case <-ctx.Done():
+				logrus.Info("Notification worker stopped")
+				return
+			case <-ticker.C:
+				// 不阻塞，每次检测都在新的 goroutine 中处理
+				go processAndSendNotifications()
+			}
 		}
 	}()
 	logrus.Info("Notification worker started (checking every 1s)")
