@@ -154,28 +154,14 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	// 统计安全列表条目数
 	safeListCount := 0
 	if SafeListData != nil {
-		for _, netList := range SafeListData.AllList {
-			// 统计单个 IP 数量
-			safeListCount += len(netList.ips)
-			// 统计 CIDR 数量（遍历 trie 树）
-			safeListCount += countCIDRNodes(netList.cidrRoot)
-		}
+		safeListCount, _ = SafeListData.Stats()
 	}
 
 	// 统计风险列表条目数和详细状态
 	riskListCount := 0
 	riskListStatus := make(map[string]int)
 	if RiskListData != nil {
-		for info, netList := range RiskListData.AllList {
-			// 统计单个 IP 数量
-			ipCount := len(netList.ips)
-			// 统计 CIDR 数量
-			cidrCount := countCIDRNodes(netList.cidrRoot)
-			totalCount := ipCount + cidrCount
-
-			riskListCount += totalCount
-			riskListStatus[info.Name] = totalCount
-		}
+		riskListCount, riskListStatus = RiskListData.Stats()
 	}
 
 	// 获取当前配置
@@ -199,19 +185,3 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// countCIDRNodes 递归统计 CIDR trie 树中的节点数（即 CIDR 条目数）
-func countCIDRNodes(node *CIDRNode) int {
-	if node == nil {
-		return 0
-	}
-
-	count := 0
-	if node.end {
-		count = 1
-	}
-
-	count += countCIDRNodes(node.children[0])
-	count += countCIDRNodes(node.children[1])
-
-	return count
-}

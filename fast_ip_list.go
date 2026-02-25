@@ -3,10 +3,21 @@ package main
 import (
 	"net/netip"
 	"sync"
-	"time"
-
-	"github.com/sirupsen/logrus"
 )
+
+// countCIDRNodes 递归统计 CIDR trie 树中的节点数（即 CIDR 条目数）
+func countCIDRNodes(node *CIDRNode) int {
+	if node == nil {
+		return 0
+	}
+	count := 0
+	if node.end {
+		count = 1
+	}
+	count += countCIDRNodes(node.children[0])
+	count += countCIDRNodes(node.children[1])
+	return count
+}
 
 // NetList 存储单 IP 和 CIDR 的混合列表
 type NetList struct {
@@ -28,6 +39,7 @@ type ListInfo struct {
 
 // ListGroup 管理多个 NetList
 type ListGroup struct {
+	mu      sync.RWMutex
 	AllList map[ListInfo]*NetList
 }
 
@@ -104,14 +116,18 @@ func (nl *NetList) Contains(ip uint32) bool {
 	return matched
 }
 
-// AddList 添加新的 NetList 到 ListGroup
+// AddList 添加新的 NetList 到 ListGroup (线程安全)
 func (lg *ListGroup) AddList(info ListInfo, ips []uint32, cidrs []netip.Prefix) {
 	nl := NewNetList(ips, cidrs)
+	lg.mu.Lock()
 	lg.AllList[info] = nl
+	lg.mu.Unlock()
 }
 
-// DelList 从 ListGroup 中删除指定名称的 NetList
+// DelList 从 ListGroup 中删除指定名称的 NetList (线程安全)
 func (lg *ListGroup) DelList(name string) {
+	lg.mu.Lock()
+	defer lg.mu.Unlock()
 	for k := range lg.AllList {
 		if k.Name == name {
 			delete(lg.AllList, k)
@@ -120,49 +136,32 @@ func (lg *ListGroup) DelList(name string) {
 	}
 }
 
-// Contains 检查 IP 是否在任何 NetList 中, 并发检查以提高效率, 任意一个匹配则返回 true 和对应的 NetListInfo
-// 使用超时机制避免goroutine永久阻塞
+// Contains 检查 IP 是否在任何 NetList 中 (线程安全)
+// 顺序检查所有 NetList，map+trie 查找本身极快，无需 goroutine 开销
 func (lg *ListGroup) Contains(ip uint32) (bool, ListInfo) {
-	var wg sync.WaitGroup
-	type result struct {
-		found bool
-		info  ListInfo
-	}
-	found := make(chan result, 1)
-	done := make(chan struct{})
+	lg.mu.RLock()
+	defer lg.mu.RUnlock()
 
-	// 并发检查每个 NetList 是否包含指定 IP
 	for info, nl := range lg.AllList {
-		wg.Add(1)
-		go func(i ListInfo, n *NetList) {
-			defer wg.Done()
-			if n.Contains(ip) {
-				select {
-				case found <- result{found: true, info: i}:
-				case <-done: // 如果已经找到或超时，立即退出
-					return
-				}
-			}
-		}(info, nl)
-	}
-
-	// 等待所有 goroutine 完成后发送结果
-	go func() {
-		wg.Wait()
-		select {
-		case found <- result{found: false, info: ListInfo{}}:
-		case <-done:
+		if nl.Contains(ip) {
+			return true, info
 		}
-	}()
-
-	// 等待结果或超时（5秒）
-	select {
-	case res := <-found:
-		close(done) // 通知所有goroutine可以退出
-		return res.found, res.info
-	case <-time.After(5 * time.Second):
-		close(done) // 通知所有goroutine可以退出
-		logrus.Warnf("IP lookup timeout for %s", Uint32ToIPv4(ip).String())
-		return false, ListInfo{}
 	}
+	return false, ListInfo{}
+}
+
+// Stats 返回统计信息：总条目数和每个列表的条目数 (线程安全)
+func (lg *ListGroup) Stats() (totalCount int, perList map[string]int) {
+	lg.mu.RLock()
+	defer lg.mu.RUnlock()
+
+	perList = make(map[string]int)
+	for info, nl := range lg.AllList {
+		ipCount := len(nl.ips)
+		cidrCount := countCIDRNodes(nl.cidrRoot)
+		total := ipCount + cidrCount
+		totalCount += total
+		perList[info.Name] = total
+	}
+	return
 }
