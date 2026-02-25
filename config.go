@@ -155,7 +155,7 @@ func initIPListConfig(list *IPList) error {
 	return nil
 }
 
-// watchConfigFile 监控配置文件变更并自动重载
+// watchConfigFile 监控配置文件变更并自动重载（带防抖）
 func watchConfigFile() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -172,6 +172,10 @@ func watchConfigFile() {
 
 	logrus.Info("Started watching config file for changes")
 
+	// 防抖定时器：编辑器保存通常触发多次 Write 事件
+	var debounceTimer *time.Timer
+	const debounceDelay = 500 * time.Millisecond
+
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -179,13 +183,19 @@ func watchConfigFile() {
 				return
 			}
 			if event.Has(fsnotify.Write) {
-				logrus.Info("Config file changed, reloading...")
-				err := initAPP()
-				if err != nil {
-					logrus.Errorf("Failed to reload config: %v", err)
-				} else {
-					logrus.Info("Config reloaded successfully")
+				// 重置防抖定时器
+				if debounceTimer != nil {
+					debounceTimer.Stop()
 				}
+				debounceTimer = time.AfterFunc(debounceDelay, func() {
+					logrus.Info("Config file changed, reloading...")
+					err := initAPP()
+					if err != nil {
+						logrus.Errorf("Failed to reload config: %v", err)
+					} else {
+						logrus.Info("Config reloaded successfully")
+					}
+				})
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
