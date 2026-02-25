@@ -16,12 +16,19 @@ var ConfigFilePath string = "config.yaml" // 默认配置文件路径
 
 // Config 表示根配置结构
 type Config struct {
-	Logging Logging `yaml:"logging"` // 日志配置
+	Logging   Logging   `yaml:"logging"`    // 日志配置
+	APIServer APIServer `yaml:"api_server"` // API 服务器配置
 
 	SafeList      []IPList      `yaml:"safe_list"`     // 安全 IP 列表配置 (白名单)
 	RiskList      []IPList      `yaml:"risk_list"`     // 风险 IP 列表配置
 	TargetLogs    []TargetLog   `yaml:"target_logs"`   // 监控的目标日志文件
 	Notifications Notifications `yaml:"notifications"` // 通知配置
+}
+
+// APIServer API 服务器配置
+type APIServer struct {
+	Enabled bool   `yaml:"enabled" default:"true"`           // 是否启用 API 服务器 (默认 true)
+	Addr    string `yaml:"addr" default:"127.0.0.1:19000"` // 监听地址 (默认 127.0.0.1:19000)
 }
 
 // Notifications 通知配置包装

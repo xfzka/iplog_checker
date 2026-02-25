@@ -121,14 +121,23 @@ func main() {
 	go watchConfigFile()
 
 	// 启动 API 服务器
-	go func() {
-		logrus.Info("Starting API server on 127.0.0.1:19000")
-		err := StartAPIServer("127.0.0.1:19000")
-		if err != nil {
-			logrus.Errorf("API server error: %v", err)
-		}
-		logrus.Info("API server stopped")
-	}()
+	configMutex.RLock()
+	apiEnabled := config.APIServer.Enabled
+	apiAddr := config.APIServer.Addr
+	configMutex.RUnlock()
+
+	if apiEnabled {
+		go func() {
+			logrus.Infof("Starting API server on %s", apiAddr)
+			err := StartAPIServer(apiAddr)
+			if err != nil {
+				logrus.Errorf("API server error: %v", err)
+			}
+			logrus.Info("API server stopped")
+		}()
+	} else {
+		logrus.Info("API server is disabled")
+	}
 
 	// 主程序逻辑在此处继续...
 	select {}
