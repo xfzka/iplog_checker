@@ -115,9 +115,10 @@ func ipToUint32(addr netip.Addr) uint32 {
 
 // downloadAndParse 下载并解析IP列表
 func downloadAndParse(client *req.Client, list IPList, data *ListGroup, listType string) error {
-	c := client
+	// 创建独立的 Client 副本避免并发修改共享实例
+	c := client.Clone()
 	if list.TimeoutParsed > 0 {
-		c = client.SetTimeout(list.TimeoutParsed)
+		c.SetTimeout(list.TimeoutParsed)
 	}
 
 	req := c.R().SetHeaders(list.CustomHeaders)
