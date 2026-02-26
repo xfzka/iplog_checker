@@ -158,7 +158,7 @@ func processLine(line string, finfo ListInfo) {
 		return
 	}
 	if isSensitive, linfo := IsSensitiveIP(ip); isSensitive {
-		logrus.Warnf("Found sensitive IP %s from %s in line: %s", Uint32ToIPv4(ip).String(), linfo.Name, line)
+		logrus.Warnf("Found sensitive IP %s from %s, level: %d in line: %s", Uint32ToIPv4(ip).String(), linfo.Name, linfo.Level, line)
 		AddNotificationItem(ip, finfo, linfo)
 	}
 }
