@@ -106,6 +106,7 @@ vim config.yaml
 | `read_mode`        | 读取模式: `tail`（实时）, `once`（定时）         | `once`  |
 | `read_interval`    | 读取间隔（仅 once 模式）                         | `2h`    |
 | `clean_after_read` | 读取后清空文件（仅 once 模式）                   | `false` |
+| `ignore_keys`      | 忽略的关键字，当日志行包含这些关键字时跳过检测   | -       |
 | `level`            | 日志文件等级，标记日志重要程度（数值越大越重要） | `1`     |
 
 ### 通知配置 (notifications)

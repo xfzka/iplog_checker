@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/hpcloud/tail"
@@ -62,7 +63,7 @@ func processFileOnce(lf TargetLog) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		processLine(line, info)
+		processLine(line, info, lf.IgnoreKeys)
 	}
 	if err := scanner.Err(); err != nil {
 		logrus.Errorf("Error reading file %s: %v", lf.Path, err)
@@ -128,7 +129,7 @@ func processTailMode(ctx context.Context, lf TargetLog) {
 				continue
 			}
 			logrus.Debugf("Read line from %s, level: %d, line: %s", lf.Name, info.Level, line.Text)
-			processLine(line.Text, info)
+			processLine(line.Text, info, lf.IgnoreKeys)
 			// tail 模式下，每行后检查通知
 			CheckAndNotify(info, false)
 		}
@@ -150,7 +151,14 @@ func processTailMode(ctx context.Context, lf TargetLog) {
 }
 
 // processLine 处理单行日志
-func processLine(line string, finfo ListInfo) {
+func processLine(line string, finfo ListInfo, ignoreKeys []string) {
+	for _, key := range ignoreKeys {
+		if strings.Contains(line, key) {
+			logrus.Debugf("Line contains ignore key %q, skipping: %s", key, line)
+			return
+		}
+	}
+
 	ip, err := ExtractIPFromLine(line)
 	if err != nil {
 		// 没有找到有效IP，记录调试信息后跳过

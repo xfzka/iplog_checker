@@ -64,6 +64,7 @@ type TargetLog struct {
 	ReadMode           string        `yaml:"read_mode" default:"once"`                   // 读取模式: tail (持续监控), once (一次性) (默认 once)
 	ReadInterval       string        `yaml:"read_interval,omitempty" default:"2h"`       // 一次性读取间隔 (仅 once 模式, 支持 h/m/s/d, 默认 2h)
 	CleanAfterRead     bool          `yaml:"clean_after_read,omitempty" default:"false"` // 读取后清空 (仅 once 模式, 默认 false)
+	IgnoreKeys         []string      `yaml:"ignore_keys,omitempty"`                      // 忽略的关键字，当日志行包含这些关键字时跳过检测
 	Level              int           `yaml:"level,omitempty" default:"1"`                // 日志文件等级 (用于标记 IP 来源, 默认 1)
 	ReadIntervalParsed time.Duration // 解析后的读取间隔
 }

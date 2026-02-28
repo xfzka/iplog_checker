@@ -122,6 +122,9 @@ target_logs:
     read_mode:
       "tail" # 读取模式: tail (持续监控), once (一次性)
       # 默认值: once
+    ignore_keys: # 可选，忽略的关键字，当日志行包含这些关键字时跳过检测
+      - "tcp 0"
+      - "length 0"
 
   # 示例2: once 模式 - 定时一次性读取整个文件
   - name: "fail2ban_log"
